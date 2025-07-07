@@ -45,7 +45,7 @@ def run(symbol: str,
     cerebro.adddata(data, name=symbol)
 
     # 3) Add strategy
-    cerebro.addstrategy(HmaTrendStrategy, fast=fast, slow=slow)
+    cerebro.addstrategy(HmaTrendStrategy, fast=fast, slow=slow, printlog=True)
 
     # 4) Run
     strat_list = cerebro.run()
@@ -83,6 +83,6 @@ if __name__ == "__main__":
         symbol="INFY",
         start="2025-04-01",
         end="2025-07-06",
-        fast=2000,
-        slow=600
+        fast=600,
+        slow=2000
     )

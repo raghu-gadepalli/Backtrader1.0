@@ -1,68 +1,76 @@
-# strategies/HmaTrendStrategy.py
-
 import backtrader as bt
 
 class HmaTrendStrategy(bt.Strategy):
     params = (
-        ("fast", 2000),   # fast HMA period
-        ("slow",  600),   # slow HMA period
+        ("fast",     600),    # fast < slow
+        ("slow",    2000),
         ("printlog", False),
     )
 
     def __init__(self):
         price = self.data.close
-
-        # Hull Moving Averages
         self.hma_fast = bt.indicators.HullMovingAverage(
             price, period=self.p.fast, plotname=f"HMA_FAST({self.p.fast})"
         )
         self.hma_slow = bt.indicators.HullMovingAverage(
             price, period=self.p.slow, plotname=f"HMA_SLOW({self.p.slow})"
         )
+        self.order = None  # keep track of pending orders
 
     def log(self, txt, dt=None):
-        """ Logging helper """
-        if self.p.printlog:
-            dt = dt or self.data.datetime[0]
-            dt = bt.num2date(dt)
-            print(f"{dt.isoformat()} — {txt}")
+        if not self.p.printlog:
+            return
+        dt = dt or self.data.datetime[0]
+        dt = bt.num2date(dt)
+        print(f"{dt.isoformat()} - {txt}")
+
+    def notify_order(self, order):
+        # called on order status changes
+        if order.status in [order.Submitted, order.Accepted]:
+            return  # no action yet
+
+        dt = self.data.datetime[0]
+        dt = bt.num2date(dt)
+        if order.status in [order.Completed]:
+            side = "BUY " if order.isbuy() else "SELL"
+            exec_price = order.executed.price
+            size       = order.executed.size
+            cost       = order.executed.value
+            self.log(f"{side} EXECUTED, Price: {exec_price:.2f}, Size: {size:.0f}, Cost: {cost:.2f}", dt)
+        elif order.status in [order.Canceled, order.Rejected]:
+            self.log("Order Canceled/Rejected", dt)
+
+        # reset
+        self.order = None
 
     def next(self):
-        # Check current position size: 0 = flat, >0 = long, <0 = short
-        pos_size = self.position.size
+        # nothing pending
+        if self.order:
+            return
 
-        # Detect a crossover: HMA fast crossing above/below slow
-        prev_fast = self.hma_fast[-1]
-        prev_slow = self.hma_slow[-1]
-        curr_fast = self.hma_fast[0]
-        curr_slow = self.hma_slow[0]
+        pos = self.position.size
+        prev_f, prev_s = self.hma_fast[-1], self.hma_slow[-1]
+        curr_f, curr_s = self.hma_fast[0],  self.hma_slow[0]
 
-        # Entry logic
-        if pos_size == 0:
-            # Bullish flip: fast crosses from <= slow to > slow
-            if prev_fast <= prev_slow and curr_fast > curr_slow:
-                self.log("BUY signal (HMA flip)", self.data.datetime[0])
-                self.buy()
-            # Bearish flip: fast crosses from >= slow to < slow
-            elif prev_fast >= prev_slow and curr_fast < curr_slow:
-                self.log("SELL signal (HMA flip)", self.data.datetime[0])
-                # Enter short
-                self.sell()
+        # ENTRY
+        if pos == 0 and prev_f <= prev_s and curr_f > curr_s:
+            self.log("SIGNAL → BUY", self.data.datetime[0])
+            self.order = self.buy()
 
-        # Exit logic
-        elif pos_size > 0:
-            # Exit long on bearish flip
-            if curr_fast < curr_slow:
-                self.log("EXIT LONG (HMA flip)", self.data.datetime[0])
-                self.close()
+        elif pos == 0 and prev_f >= prev_s and curr_f < curr_s:
+            self.log("SIGNAL → SELL", self.data.datetime[0])
+            self.order = self.sell()
 
-        elif pos_size < 0:
-            # Exit short on bullish flip
-            if curr_fast > curr_slow:
-                self.log("EXIT SHORT (HMA flip)", self.data.datetime[0])
-                self.close()
+        # EXIT LONG
+        elif pos > 0 and curr_f < curr_s:
+            self.log("SIGNAL → EXIT LONG", self.data.datetime[0])
+            self.order = self.close()
+
+        # EXIT SHORT
+        elif pos < 0 and curr_f > curr_s:
+            self.log("SIGNAL → EXIT SHORT", self.data.datetime[0])
+            self.order = self.close()
 
     def stop(self):
-        # Optionally print final P/L
         pnl = round(self.broker.getvalue() - self.broker.startingcash, 2)
-        self.log(f"Ending PnL: {pnl}", dt=self.data.datetime[0])
+        self.log(f"END PnL: {pnl}", self.data.datetime[0])
