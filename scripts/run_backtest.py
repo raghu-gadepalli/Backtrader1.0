@@ -3,6 +3,9 @@
 
 import os
 import sys
+import matplotlib
+matplotlib.use('Agg')
+
 import backtrader as bt
 
 # ensure project root is on sys.path
