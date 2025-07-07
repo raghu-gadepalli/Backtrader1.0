@@ -24,8 +24,8 @@ ACCESS_TOKEN = "6w2AQw8fj5Ks5bXUcIlJ9aR1ymtSaAtN"
 SYMBOL = "INFY"
 TOKEN  = 408065   # NSE instrument_token for INFY
 
-START_DATE = "2025-05-31"
-END_DATE   = "2025-06-30"
+START_DATE = "2025-07-01"
+END_DATE   = "2025-07-31"
 
 # Only backfilling 1-minute for now
 FREQUENCIES = ["1m"]
