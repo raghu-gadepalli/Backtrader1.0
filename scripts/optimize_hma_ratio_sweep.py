@@ -20,16 +20,16 @@ from data.load_candles           import load_candles
 from strategies.HmaTrendStrategy import HmaTrendStrategy
 
 # ─── USER CONFIGURATION ────────────────────────────────────────────────────────
-SYMBOL      = "INFY"
+SYMBOL      = "RELIANCE"
 START       = "2025-04-01"
 END         = "2025-07-06"
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 # list of “fast” HMA windows to test
-fast_vals = [160, 320, 480, 640, 960]
+fast_vals = [80, 120, 160, 200, 240, 280, 320, 480, 640, 800]
 # list of ratios to apply (slow = fast * ratio)
-ratios    = [2.0, 2.5, 3.0, 3.3, 4.0]
+ratios    = [1.5, 2.0, 2.5, 3.0, 3.3, 3.5, 4.0]
 
 
 def optimize():
