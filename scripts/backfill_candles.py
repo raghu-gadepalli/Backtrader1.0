@@ -31,8 +31,8 @@ SYMBOL = "ICICIBANK"
 TOKEN  = 1270529   # NSE instrument_token for INFY
 
 
-START_DATE = "2025-04-01"
-END_DATE   = "2025-04-30"
+START_DATE = "2025-05-01"
+END_DATE   = "2025-05-31"
 
 # Only backfilling 1-minute for now
 FREQUENCIES = ["1m"]
