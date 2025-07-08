@@ -20,7 +20,7 @@ from data.load_candles           import load_candles
 from strategies.HmaTrendStrategy import HmaTrendStrategy
 
 # ─── USER CONFIGURATION ────────────────────────────────────────────────────────
-SYMBOL      = "RELIANCE"
+SYMBOL      = "INFY"
 START       = "2025-04-01"
 END         = "2025-07-06"
 RESULTS_DIR = os.path.join(_ROOT, "results")
