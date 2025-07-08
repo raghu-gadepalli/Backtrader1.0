@@ -21,17 +21,17 @@ from models.trade_models import Candle
 API_KEY      = "bv185n0541aaoish"
 ACCESS_TOKEN = "e7TtdoVh6MxVpUITd2GEx4AB4n6swDuL"
 
-# SYMBOL = "INFY"
-# TOKEN  = 408065   # NSE instrument_token for INFY
+SYMBOL = "INFY"
+TOKEN  = 408065   # NSE instrument_token for INFY
 
 # SYMBOL = "RELIANCE"
 # TOKEN  = 738561   # NSE instrument_token for INFY
 
-SYMBOL = "ICICIBANK"
-TOKEN  = 1270529   # NSE instrument_token for INFY
+# SYMBOL = "ICICIBANK"
+# TOKEN  = 1270529   # NSE instrument_token for INFY
 
 
-START_DATE = "2025-06-01"
+START_DATE = "2025-07-01"
 END_DATE   = "2025-07-07"
 
 # Only backfilling 1-minute for now
