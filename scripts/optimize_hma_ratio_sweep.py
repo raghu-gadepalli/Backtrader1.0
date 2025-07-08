@@ -74,27 +74,28 @@ def optimize():
             strat = cerebro.run()[0]
 
             # Extract metrics
-            sa     = strat.analyzers
-            sharpe = sa.sharpe.get_analysis().get("sharperatio", float("nan"))
-            dd     = sa.drawdown.get_analysis().max.drawdown
-            tr     = sa.trades.get_analysis()
+            sa         = strat.analyzers
+            raw_sharpe = sa.sharpe.get_analysis().get("sharperatio", None)
+            sharpe     = round(raw_sharpe, 4) if raw_sharpe is not None else float("nan")
+            dd         = sa.drawdown.get_analysis().max.drawdown
+            tr         = sa.trades.get_analysis()
 
-            # SAFELY extract trade counts:
-            total = tr.get("total", {}).get("closed", 0)
-            won   = tr.get("won",   {}).get("total",  0)
-            winpct = (won / total * 100) if total else 0.0
+            total_trades = tr.get("total", {}).get("closed", 0)
+            won          = tr.get("won",   {}).get("total",  0)
+            winpct       = (won / total_trades * 100) if total_trades else 0.0
 
             records.append({
                 "ratio":  ratio,
                 "fast":   fast,
                 "slow":   slow,
-                "sharpe": round(sharpe, 4),
+                "sharpe": sharpe,
                 "max_dd": round(dd,     4),
-                "trades": total,
+                "trades": total_trades,
                 "win%":   round(winpct, 1),
             })
 
-            print(f"✓ r={ratio:<3} f={fast:<4} s={slow:<4} → Sharpe {sharpe:.4f}, Win% {winpct:.1f}%")
+            sharpe_str = f"{sharpe:.4f}" if raw_sharpe is not None else "N/A"
+            print(f"✓ r={ratio:<3} f={fast:<4} s={slow:<4} → Sharpe {sharpe_str}, Win% {winpct:.1f}%")
 
     # 3) Build & save results DataFrame
     df_res = pd.DataFrame(records)
