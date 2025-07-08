@@ -27,8 +27,12 @@ RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 # Generate all HMA window lengths divisible by 40
-fast_vals = list(range(200, 1001, 40))   # 200, 240, 280, …,  960, 1000
-slow_vals = list(range(240, 3001, 40))   # 240, 280, 320, …, 2960, 3000
+# fast_vals = list(range(200, 1001, 40))   # 200, 240, 280, …,  960, 1000
+# slow_vals = list(range(240, 3001, 40))   # 240, 280, 320, …, 2960, 3000
+
+
+fast_vals = list(range(360, 641, 40))   # [360, 400, 440, 480, 520, 560, 600]
+slow_vals = [int(f * 3.0) for f in fast_vals]  # keep the 3× ratio
 
 def optimize():
     # preload your candle data once
