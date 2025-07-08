@@ -67,6 +67,7 @@ def optimize():
                 HmaTrendStrategy,
                 fast=fast,
                 slow=slow,
+                atr_mult=0.0,    # disable ATR gating
                 printlog=False
             )
 
