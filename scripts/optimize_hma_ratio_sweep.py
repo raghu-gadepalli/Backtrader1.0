@@ -78,8 +78,10 @@ def optimize():
             sharpe = sa.sharpe.get_analysis().get("sharperatio", float("nan"))
             dd     = sa.drawdown.get_analysis().max.drawdown
             tr     = sa.trades.get_analysis()
-            total  = tr.total.closed or 0
-            won    = tr.won.total   or 0
+
+            # SAFELY extract trade counts:
+            total = tr.get("total", {}).get("closed", 0)
+            won   = tr.get("won",   {}).get("total",  0)
             winpct = (won / total * 100) if total else 0.0
 
             records.append({
