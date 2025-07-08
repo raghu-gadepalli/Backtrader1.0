@@ -24,11 +24,11 @@ ACCESS_TOKEN = "e7TtdoVh6MxVpUITd2GEx4AB4n6swDuL"
 # SYMBOL = "INFY"
 # TOKEN  = 408065   # NSE instrument_token for INFY
 
-# SYMBOL = "RELIANCE"
-# TOKEN  = 738561   # NSE instrument_token for INFY
+SYMBOL = "RELIANCE"
+TOKEN  = 738561   # NSE instrument_token for INFY
 
-SYMBOL = "ICICIBANK"
-TOKEN  = 1270529   # NSE instrument_token for INFY
+# SYMBOL = "ICICIBANK"
+# TOKEN  = 1270529   # NSE instrument_token for INFY
 
 
 START_DATE = "2025-05-01"
