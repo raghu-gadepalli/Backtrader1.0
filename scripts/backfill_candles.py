@@ -31,8 +31,8 @@ TOKEN  = 738561   # NSE instrument_token for INFY
 # TOKEN  = 1270529   # NSE instrument_token for INFY
 
 
-START_DATE = "2025-05-01"
-END_DATE   = "2025-05-31"
+START_DATE = "2025-06-01"
+END_DATE   = "2025-07-07"
 
 # Only backfilling 1-minute for now
 FREQUENCIES = ["1m"]
