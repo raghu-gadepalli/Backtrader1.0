@@ -27,7 +27,7 @@ RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 # fast from 200 → 1000 step 40
-fast_vals = list(range(200, 1001, 40))
+fast_vals = list(range(80, 1001, 40))
 # slow from 240 → 3000 step 40
 slow_vals = list(range(240, 3001, 40))
 
