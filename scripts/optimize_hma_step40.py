@@ -26,9 +26,9 @@ END         = "2025-07-06"
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# Generate all HMA window lengths divisible by 60
-fast_vals = list(range(60, 1001, 60))   # 200, 240, 280, …,  960, 1000
-slow_vals = list(range(120, 3001, 60))   # 240, 280, 320, …, 2960, 3000
+# Generate all HMA window lengths divisible by 40
+fast_vals = list(range(200, 1001, 40))   # 200, 240, 280, …,  960, 1000
+slow_vals = list(range(240, 3001, 40))   # 240, 280, 320, …, 2960, 3000
 
 def optimize():
     # preload your candle data once
@@ -36,7 +36,7 @@ def optimize():
 
     records = []
     total_runs = sum(1 for f in fast_vals for s in slow_vals if s > f)
-    print(f"Running {total_runs} (fast,slow) combos with 60-step…\n")
+    print(f"Running {total_runs} (fast,slow) combos with 40-step…\n")
 
     for fast in fast_vals:
         for slow in slow_vals:
@@ -91,11 +91,11 @@ def optimize():
     df_res = df_res.sort_values("sharpe", ascending=False).reset_index(drop=True)
 
     # write to CSV
-    out_csv = os.path.join(RESULTS_DIR, "hma_60step_results.csv")
+    out_csv = os.path.join(RESULTS_DIR, "hma_40step_results.csv")
     df_res.to_csv(out_csv, index=False)
 
     # display top 10
-    print("\nTop 10 HMA combos (60-step) by Sharpe:\n")
+    print("\nTop 10 HMA combos (40-step) by Sharpe:\n")
     print(df_res.head(10).to_string(index=False))
     print(f"\nFull results written to {out_csv}")
 
