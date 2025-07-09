@@ -19,7 +19,7 @@ from models.trade_models import Candle
 # ─── CONFIGURATION ─────────────────────────────────────────────────────────────
 
 API_KEY      = "bv185n0541aaoish"
-ACCESS_TOKEN = "e7TtdoVh6MxVpUITd2GEx4AB4n6swDuL"
+ACCESS_TOKEN = "HV2RkWq91xY8J4uA4BKMdJn4Iwfen0AT"
 
 # SYMBOL = "INFY"
 # TOKEN  = 408065   # NSE instrument_token for INFY
