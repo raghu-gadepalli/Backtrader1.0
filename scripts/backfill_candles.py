@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-Backfill INFY 1-minute candles into the backtest DB using KiteConnect.
-Fields and filters have been updated to match your Candle model.
+Backfill multiple symbols into the backtest DB using KiteConnect.
 """
 
 import os
 import sys
 from datetime import datetime, timedelta
-
 from kiteconnect import KiteConnect
 
 # ensure project root is on sys.path
@@ -21,31 +19,33 @@ from models.trade_models import Candle
 API_KEY      = "bv185n0541aaoish"
 ACCESS_TOKEN = "HV2RkWq91xY8J4uA4BKMdJn4Iwfen0AT"
 
-# SYMBOL = "INFY"
-# TOKEN  = 408065   # NSE instrument_token for INFY
+# Define list of (SYMBOL, TOKEN)
 
-# SYMBOL = "RELIANCE"
-# TOKEN  = 738561   # NSE instrument_token for INFY
+SYMBOLS = [
+    ("AXISBANK",   1510401),
+    ("HDFCBANK",   341249),
+    # ("ICICIBANK",  1270529),
+    # ("INFY",       408065),
+    ("KOTAKBANK",  492033),
+    ("MARUTI",     2815745),
+    ("NIFTY 50",   256265),
+    ("NIFTY BANK", 260105),
+    # ("RELIANCE",   738561),
+    ("SBIN",       779521),
+    # ("SUNPHARMA",  857857),
+    # ("TATAMOTORS", 884737),
+    ("TCS",        2953217),
+    ("TECHM",      3465729),
+]
 
-# SYMBOL = "ICICIBANK"
-# TOKEN  = 1270529   # NSE instrument_token for INFY
 
-SYMBOL = "TATAMOTORS"
-TOKEN  = 884737   # NSE instrument_token for
-
-# SYMBOL = "SUNPHARMA"
-# TOKEN  = 857857
-
-   # NSE instrument_token for
 
 
 START_DATE = "2025-04-01"
 END_DATE   = "2025-05-31"
 
-# Only backfilling 1-minute for now
 FREQUENCIES = ["1m"]
 
-# Map shorthand to Kite interval *and* to integer minute
 INTERVAL_MAP = {
     "1m":  ("minute",  1),
     "3m":  ("3minute", 3),
@@ -59,16 +59,7 @@ INTERVAL_MAP = {
 
 # ─── BACKFILL LOGIC ────────────────────────────────────────────────────────────
 
-def backfill_symbol(
-    kite:    KiteConnect,
-    session,
-    symbol:  str,
-    token:   int,
-    freq:    str,
-    start:   datetime,
-    end:     datetime
-) -> None:
-    """Fetch and upsert historical bars for one symbol/timeframe."""
+def backfill_symbol(kite, session, symbol, token, freq, start, end):
     interval, freq_num = INTERVAL_MAP[freq]
 
     print(f"Fetching {symbol} @ {freq} ({interval}) from {start} to {end}")
@@ -79,7 +70,6 @@ def backfill_symbol(
         interval=interval
     )
 
-    # Delete any overlapping rows in backtest.candles
     session.query(Candle).filter(
         Candle.symbol      == symbol,
         Candle.frequency   == freq_num,
@@ -87,7 +77,6 @@ def backfill_symbol(
     ).delete(synchronize_session=False)
     session.commit()
 
-    # Insert fresh bars
     for b in bars:
         session.add(Candle(
             symbol      = symbol,
@@ -106,20 +95,19 @@ def backfill_symbol(
 
 
 def main():
-    # Parse & expand date range
     start_dt = datetime.fromisoformat(START_DATE)
     end_dt   = datetime.fromisoformat(END_DATE) + timedelta(hours=23, minutes=59)
 
-    # Init Kite client
     kite = KiteConnect(api_key=API_KEY)
     kite.set_access_token(ACCESS_TOKEN)
 
     with get_session() as session:
-        print(f"Backfilling {SYMBOL} (token={TOKEN})")
-        for freq in FREQUENCIES:
-            backfill_symbol(kite, session, SYMBOL, TOKEN, freq, start_dt, end_dt)
+        for symbol, token in SYMBOLS:
+            print(f"\n📊 Backfilling {symbol} (token={token})")
+            for freq in FREQUENCIES:
+                backfill_symbol(kite, session, symbol, token, freq, start_dt, end_dt)
 
-    print("✅ Backfill complete.")
+    print("\n✅ Backfill complete.")
 
 
 if __name__ == "__main__":

@@ -1,40 +1,28 @@
 #!/usr/bin/env python3
-# scripts/run_backtest.py
 
-import os
-import sys
+import os, sys
 from datetime import datetime
 
-# ─── FORCE HEADLESS AGG BACKEND ────────────────────────────────────────────────
+# Force non-interactive Agg backend
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib
 matplotlib.use("Agg", force=True)
-
-import backtrader as bt
 import matplotlib.pyplot as plt
 
-# ─── PROJECT ROOT ON PATH ──────────────────────────────────────────────────────
+import backtrader as bt
+
+# Add project root to sys.path
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from data.load_candles            import load_candles
-from strategies.HmaLevelStrategy  import HmaLevelStrategy
+from data.load_candles       import load_candles
+from strategies.HmaTrendStrategy import HmaTrendStrategy
 
-# ─── ENSURE RESULTS DIR ─────────────────────────────────────────────────────────
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-
-def run(symbol: str,
-        start:  str,
-        end:    str,
-        fast:   int,
-        mid1:   int,
-        mid2:   int,
-        mid3:   int,
-        level:  int,
-        atr_mult: float = 0.0):
+def run(symbol, start, end, fast, slow, atr_mult=0.0):
     cerebro = bt.Cerebro()
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
                         timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
@@ -42,29 +30,26 @@ def run(symbol: str,
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer,_name="trades")
 
     # Load warmup + test data
-    df_all = load_candles(symbol, "2025-04-01", end)
+    df = load_candles(symbol, "2025-04-01", end)
     data = bt.feeds.PandasData(
-        dataname=df_all,
+        dataname=df,
         timeframe=bt.TimeFrame.Minutes,
         compression=1
     )
     cerebro.adddata(data, name=symbol)
 
-    # Add our level-based HMA strategy
+    # Inject strategy
     cerebro.addstrategy(
-        HmaLevelStrategy,
+        HmaTrendStrategy,
         fast=fast,
-        mid1=mid1,
-        mid2=mid2,
-        mid3=mid3,
-        level=level,
+        slow=slow,
         atr_mult=atr_mult,
         printlog=True
     )
 
     strat = cerebro.run()[0]
 
-    # Extract metrics
+    # Metrics
     sa     = strat.analyzers
     sharpe = sa.sharpe.get_analysis().get("sharperatio", None)
     dd     = sa.drawdown.get_analysis().max.drawdown
@@ -80,17 +65,30 @@ def run(symbol: str,
     print(f"Total Trades : {total}")
     print(f"Win Rate     : {winr:.1f}% ({won}W/{lost}L)\n")
 
+    # Manual plot of the two HMAs
+    dates     = [bt.num2date(x) for x in data.datetime.array]
+    close_arr = data.close.array
+    h1        = strat.hma_fast.array
+    h2        = strat.hma_slow.array
+
+    plt.figure(figsize=(12,6))
+    plt.plot(dates, close_arr, label="Close")
+    plt.plot(dates, h1,       label=f"HMA Fast ({fast})")
+    plt.plot(dates, h2,       label=f"HMA Slow ({slow})")
+    plt.xlim(datetime.fromisoformat(start), datetime.fromisoformat(end))
+    plt.legend()
+    out = os.path.join(RESULTS_DIR, f"{symbol}_f{fast}_s{slow}_atr{atr_mult}.png")
+    plt.savefig(out)
+    plt.close()
+    print(f"Saved plot: {out}\n")
+
 
 if __name__ == "__main__":
-    # Example: test "bull3" only on ICICIBANK
     run(
         symbol="ICICIBANK",
         start="2025-04-01",
         end="2025-07-06",
         fast=600,
-        mid1=760,
-        mid2=1040,
-        mid3=1520,
-        level=3,
+        slow=760,
         atr_mult=0.0
     )
