@@ -17,7 +17,7 @@ from models.trade_models import Candle
 # ─── CONFIGURATION ─────────────────────────────────────────────────────────────
 
 API_KEY      = "bv185n0541aaoish"
-ACCESS_TOKEN = "HV2RkWq91xY8J4uA4BKMdJn4Iwfen0AT"
+ACCESS_TOKEN = "1M5vnSZA0ZQrsTMli6vVXp3XmLVgyp0T"
 
 # Define list of (SYMBOL, TOKEN)
 
