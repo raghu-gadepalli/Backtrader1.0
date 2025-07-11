@@ -14,15 +14,15 @@ from data.load_candles    import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 
 # ─── USER PARAMETERS ──────────────────────────────────────────────────────────
-STOCKS       = ["ICICIBANK", "INFY", "RELIANCE"]  # …add more tickers here…
-# STOCKS       = ["INFY"]  # …add more tickers here…
+# STOCKS       = ["ICICIBANK", "INFY", "RELIANCE"]  # …add more tickers here…
+STOCKS       = ["INFY"]  # …add more tickers here…
 WARMUP_START = "2025-04-01"
 END          = "2025-07-06"
 ATR_MULT     = 0.0
 
 METRIC       = "sharpe"     # or "expectancy"
-# FAST_RANGE   = range(160, 1001, 80)   # e.g. 160,240,…,960
-# MID1_RANGE   = range(160, 1601, 160)  # e.g. 160,320,…,1600
+# FAST_RANGE   = range(80, 1001, 80)   # e.g. 160,240,…,960
+# MID1_RANGE   = range(160, 2001, 160)  # e.g. 160,320,…,1600
 
 FAST_RANGE   = range(60, 961, 60)    #  60,120,180,…,960
 MID1_RANGE   = range(120, 1921, 120) # 120,240,360,…,1920
