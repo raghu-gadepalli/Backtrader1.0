@@ -25,11 +25,11 @@ ATR_MULT     = 0.0
 METRIC       = "sharpe"        # or "expectancy"
 
 # ── choose one block ──────────────────────────────────────────────────────────
-FAST_RANGE   = range(80, 1001, 80)   # 80-step multiples: 80,160,…,960
-MID1_RANGE   = range(160, 2001, 160) # 80-step multiples: 160,320,…,1600
+# FAST_RANGE   = range(80, 1001, 80)   # 80-step multiples: 80,160,…,960
+# MID1_RANGE   = range(160, 2001, 160) # 80-step multiples: 160,320,…,1600
 
-# FAST_RANGE   = range(60, 961, 60)    # 60-step multiples: 60,120,…,960
-# MID1_RANGE   = range(120, 1921, 120) # 60-step multiples: 120,240,…,1920
+FAST_RANGE   = range(60, 961, 60)    # 60-step multiples: 60,120,…,960
+MID1_RANGE   = range(120, 1921, 120) # 60-step multiples: 120,240,…,1920
 # ──────────────────────────────────────────────────────────────────────────────
 
 TOP_N        = 5                    # how many top fast/mid1 to drill
