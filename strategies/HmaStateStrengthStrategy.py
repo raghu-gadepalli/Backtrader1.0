@@ -2,13 +2,9 @@
 
 from typing import Dict, Any, Tuple
 import backtrader as bt
-from config.enums import TrendType   # adjust path if needed
+from config.enums import TrendType   # adjust import as needed
 
 def derive_hma_state_strength(rec: Dict[str, Any]) -> Tuple[TrendType, str]:
-    """
-    Compare the fast HMA against three slower HMAs and
-    return (TrendType, strength label).
-    """
     h   = rec["hma"]
     m1  = rec["hma_mid1"]
     m2  = rec["hma_mid2"]
@@ -40,13 +36,15 @@ def derive_hma_state_strength(rec: Dict[str, Any]) -> Tuple[TrendType, str]:
 
 class HmaStateStrengthStrategy(bt.Strategy):
     params = dict(
-        fast       = 600,    # tuned fast HMA
-        mid1       = 760,    # tuned “hma320”
-        mid2       = 1040,   # tuned “hma1200”
-        mid3       = 1520,   # tuned “hma3800”
-        atr_period = 14,
-        atr_mult   = 0.1,    # noise gate
-        printlog   = False,
+        fast          = 600,    # tuned fast HMA
+        mid1          = 760,    # tuned mid HMA #1
+        mid2          = 1040,   # tuned mid HMA #2
+        mid3          = 1520,   # tuned slow HMA
+        atr_period    = 14,
+        atr_mult      = 0.1,    # gap noise‐gate
+        adx_period    = 14,     # new ADX lookback
+        adx_threshold = 25.0,   # require ADX > this to trade
+        printlog      = False,
     )
 
     def __init__(self):
@@ -61,6 +59,10 @@ class HmaStateStrengthStrategy(bt.Strategy):
 
         # ATR filter
         self.atr       = bt.indicators.ATR(self.data, period=p.atr_period)
+
+        # ADX filter
+        self.adx       = bt.indicators.ADX(self.data, period=p.adx_period)
+
         self.order     = None
 
     def log(self, txt, dt=None):
@@ -70,23 +72,20 @@ class HmaStateStrengthStrategy(bt.Strategy):
         print(f"{dt.isoformat()} — {txt}")
 
     def notify_order(self, order):
-        # only act on completed orders
         if order.status in (order.Submitted, order.Accepted):
             return
-
         if order.status == order.Completed:
             side = "BUY " if order.isbuy() else "SELL"
             self.log(f"{side}EXECUTED @ {order.executed.price:.2f}, Size {order.executed.size}")
         elif order.status in (order.Canceled, order.Rejected):
             self.log("Order Canceled/Rejected")
-
-        # clear order flag so we can send new ones
-        self.order = None
+        self.order = None  # reset
 
     def next(self):
         if self.order:
             return
 
+        # current readings
         rec = {
             "hma":       self.hma[0],
             "hma_mid1":  self.hma_mid1[0],
@@ -97,16 +96,21 @@ class HmaStateStrengthStrategy(bt.Strategy):
 
         gap    = abs(self.data.close[0] - self.hma[0])
         thresh = self.p.atr_mult * self.atr[0]
+        adx_ok = self.adx[0] > self.p.adx_threshold
         pos    = self.position.size
 
         # ENTRY LONG
-        if pos == 0 and state == TrendType.BUY and strength in ("Strong Buy","Medium Buy") and gap > thresh:
-            self.log(f"SIGNAL → BUY ({strength}, gap {gap:.2f} > {thresh:.2f})")
+        if pos == 0 and state == TrendType.BUY \
+           and strength in ("Strong Buy","Medium Buy") \
+           and gap > thresh and adx_ok:
+            self.log(f"SIGNAL → BUY ({strength}, gap {gap:.2f} > {thresh:.2f}, ADX {self.adx[0]:.1f})")
             self.order = self.buy()
 
         # ENTRY SHORT
-        elif pos == 0 and state == TrendType.SELL and strength in ("Strong Sell","Medium Sell") and gap > thresh:
-            self.log(f"SIGNAL → SELL ({strength}, gap {gap:.2f} > {thresh:.2f})")
+        elif pos == 0 and state == TrendType.SELL \
+             and strength in ("Strong Sell","Medium Sell") \
+             and gap > thresh and adx_ok:
+            self.log(f"SIGNAL → SELL ({strength}, gap {gap:.2f} > {thresh:.2f}, ADX {self.adx[0]:.1f})")
             self.order = self.sell()
 
         # EXIT LONG
