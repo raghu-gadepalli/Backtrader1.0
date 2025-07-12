@@ -3,12 +3,13 @@
 scripts/run_hma_test.py
 
 Self-contained grid sweep of the 'fast' HMA parameter for three symbols,
-writing Sharpe/Drawdown/Trades/Win-rate into an Excel file, with progress prints.
+writing Sharpe/Drawdown/Trades/Win‐rate into an Excel file, with progress prints.
+
+FASTS and OUTPUT_PATH are hard-coded at the top of the file; no CLI args needed.
 """
 import os
 import sys
 from pathlib import Path
-import argparse
 
 # force headless plotting for backtrader
 os.environ["MPLBACKEND"] = "Agg"
@@ -24,23 +25,33 @@ if _ROOT not in sys.path:
 from data.load_candles                   import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 
-# fixed mids and evaluation windows
+# ─────── HARD-CODED SETTINGS ─────────
+
+# List of 'fast' HMA values to test
+FASTS = [30, 60, 120, 180, 240]
+
+# Output Excel file
+OUTPUT_PATH = Path("hma_fast_sweep.xlsx")
+
+# Fixed mid legs (must satisfy fast < mid1 < mid2 < mid3)
 FIXED_MIDS = {
-    "ICICIBANK": {"mid1": 1440, "mid2":  540, "mid3":  900},
-    "INFY":      {"mid1": 1680, "mid2":  120, "mid3":  240},
-    "RELIANCE":  {"mid1": 1680, "mid2":  180, "mid3":  240},
+    "ICICIBANK": {"mid1":  540, "mid2":  900, "mid3": 1440},
+    "INFY":      {"mid1":  120, "mid2":  240, "mid3": 1680},
+    "RELIANCE":  {"mid1":  180, "mid2":  240, "mid3": 1680},
 }
 
+# Warm-up start and evaluation periods
 WARMUP_START = "2025-04-01"
 EVAL_PERIODS = [
     ("2025-05-01", "2025-05-31", "MAY"),
     ("2025-06-01", "2025-06-30", "JUN")
 ]
 
+# ─────── END HARD-CODED SETTINGS ──────
+
 def run_period(symbol, w_start, p_start, p_end, params):
     """
-    Run Cerebro from w_start→p_end, report only p_start→p_end metrics.
-    Returns a dict with metrics.
+    Run Cerebro from w_start→p_end, return metrics for p_start→p_end.
     """
     cerebro = bt.Cerebro()
     cerebro.addanalyzer(bt.analyzers.SharpeRatio,  _name="sharpe",
@@ -84,41 +95,37 @@ def run_period(symbol, w_start, p_start, p_end, params):
     }
 
 def main():
-    parser = argparse.ArgumentParser(description="Grid-sweep 'fast' HMA parameter")
-    parser.add_argument("--fasts", nargs="+", type=int, required=True,
-                        help="List of 'fast' HMA values to test")
-    parser.add_argument("--output", type=Path, default=Path("hma_fast_sweep.xlsx"),
-                        help="Excel file to write results")
-    args = parser.parse_args()
-
-    fasts = args.fasts
-    out_path = args.output
-    print(f"Starting HMA fast sweep with fasts={fasts}, output→ {out_path}\n")
+    print(f"Starting HMA fast sweep: FASTS={FASTS}, OUTPUT={OUTPUT_PATH}\n")
 
     results = []
-    total_iters = len(fasts) * len(FIXED_MIDS) * len(EVAL_PERIODS)
+    total_iters = len(FASTS) * len(FIXED_MIDS) * len(EVAL_PERIODS)
     iter_count = 0
 
-    for fast in fasts:
+    for fast in FASTS:
         print(f"=== Testing fast = {fast} ===")
         for symbol, mids in FIXED_MIDS.items():
+            # enforce ordering constraint
+            if not (fast < mids["mid1"] < mids["mid2"] < mids["mid3"]):
+                print(f"  ↳ Skipping {symbol}: fast({fast}) !< mid1({mids['mid1']}) < mid2({mids['mid2']}) < mid3({mids['mid3']})")
+                continue
+
             print(f"  ↳ Symbol: {symbol}")
             params = {"fast": fast, **mids, "atr_mult": 0.0}
 
             for p_start, p_end, label in EVAL_PERIODS:
                 iter_count += 1
-                print(f"    [{iter_count}/{total_iters}] Period {label}: {p_start}→{p_end} ...", end=" ")
-                
+                print(f"    [{iter_count}/{total_iters}] {label} {p_start}→{p_end} ...", end=" ")
+
                 row = run_period(symbol, WARMUP_START, p_start, p_end, params)
                 print(f"Sharpe={row['sharpe']}, Trades={row['trades']}, Win={row['win_rate']}%")
-                
+
                 results.append(row)
 
     # build DataFrame and write to Excel
     df = pd.DataFrame(results)
     df = df[["symbol", "fast", "period", "sharpe", "drawdown", "trades", "win_rate", "wins", "losses"]]
-    df.to_excel(out_path, index=False)
-    print(f"\nDone! Results written to {out_path}")
+    df.to_excel(OUTPUT_PATH, index=False)
+    print(f"\nDone! Results written to {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     main()
