@@ -1,130 +1,191 @@
 #!/usr/bin/env python3
-# scripts/optimize_hma_two_stage_multi.py
+"""
+scripts/optimize_hma_coordinate.py
+
+Three-pass coordinate descent for multi‐HMA:
+  1) Sweep (fast, mid1)
+  2) Drill mid2 for top heads
+  3) Drill mid3 for top mid2 combos
+
+All parameters are hard-coded below for easy editing.
+"""
 
 import os
 import sys
-import csv
 
-# ─── PROJECT ROOT ON PATH ──────────────────────────────────────────────────────
+# ─── project root on path ─────────────────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 import backtrader as bt
-from data.load_candles    import load_candles
+from data.load_candles                   import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 
 # ─── USER PARAMETERS ──────────────────────────────────────────────────────────
-# STOCKS       = ["ICICIBANK", "INFY", "RELIANCE"]  # …add more tickers here…
-STOCKS       = ["INFY"]  # …add more tickers here…
-
+# STOCKS       = ["ICICIBANK", "INFY", "RELIANCE"]
+STOCKS       = ["INFY"]
 WARMUP_START = "2025-04-01"
 END          = "2025-07-06"
 ATR_MULT     = 0.0
 
-METRIC       = "sharpe"        # or "expectancy"
+METRIC       = "sharpe"   # or "expectancy"
 
-# ── choose one block ──────────────────────────────────────────────────────────
-FAST_RANGE   = range(60, 961, 60)    # 60-step multiples: 60,120,…,960
-MID1_RANGE   = range(120, 1921, 120) # 60-step multiples: 120,240,…,1920
+# How many to keep at each pass
+PASS1_N      = 3          # number of (fast,mid1) heads
+PASS2_N      = 3          # number of (fast,mid1,mid2) combos
+PASS3_N      = 3          # number of final (fast,mid1,mid2,mid3) combos
+
+# Enforce distinct on each pass?
+DISTINCT1    = True       # distinct fasts in pass1
+DISTINCT2    = True       # distinct mid2s in pass2
+DISTINCT3    = True       # distinct mid3s in pass3
+
+# Grids for each pass
+FAST_RANGE   = range(30, 181, 30)    # 30,60,90,120,150,180
+MID1_RANGE   = range(120, 721, 120)  # 120,240,360,480,600,720
+MID2_RANGE   = [120, 180, 240, 360]  # explicit mids to try in pass2
+MID3_RANGE   = [240, 360, 480, 720]  # explicit mids to try in pass3
 # ──────────────────────────────────────────────────────────────────────────────
-
-TOP_N        = 5                    # how many top fast/mid1 to drill
-
-# ─── REPLACE MULTIPLIERS WITH EXPLICIT RANGES ─────────────────────────────────
-MID2_RANGE   = [120, 180, 240, 360, 480]    # explicit mids to try
-MID3_RANGE   = [240, 360, 480, 720, 960]    # explicit mids to try
-# ──────────────────────────────────────────────────────────────────────────────
-
 
 def backtest(symbol, fast, mid1, mid2, mid3, atr_mult):
+    """Run Backtrader for given HMA params, return sharpe, expectancy, wins, losses."""
     cerebro = bt.Cerebro(stdstats=False)
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
-                        timeframe=bt.TimeFrame.Minutes, riskfreerate=0)
-    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
+                        timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
+    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer,  _name="trades")
 
     df = load_candles(symbol, WARMUP_START, END)
     data = bt.feeds.PandasData(dataname=df,
                                timeframe=bt.TimeFrame.Minutes,
                                compression=1)
     cerebro.adddata(data)
-    cerebro.addstrategy(
-        HmaStateStrengthStrategy,
-        fast=fast, mid1=mid1, mid2=mid2, mid3=mid3,
-        atr_mult=atr_mult, printlog=False
-    )
+    cerebro.addstrategy(HmaStateStrengthStrategy,
+                        fast=fast, mid1=mid1, mid2=mid2, mid3=mid3,
+                        atr_mult=atr_mult, printlog=False)
+
     strat = cerebro.run()[0]
-
-    # Sharpe
-    s = strat.analyzers.sharpe.get_analysis().get("sharperatio")
-    sharpe = s if s is not None else float("-inf")
-
-    # Expectancy
+    s = strat.analyzers.sharpe.get_analysis().get("sharperatio") or float("-inf")
     tr = strat.analyzers.trades.get_analysis()
-    won  = tr.get("won",{}).get("total", 0)
-    lost = tr.get("lost",{}).get("total", 0)
-    avg_w = tr.get("won",{}).get("pnl",{}).get("average", 0.0)
-    avg_l = tr.get("lost",{}).get("pnl",{}).get("average", 0.0)
-    total = won + lost
-    if total:
-        wr = won/total; lr = lost/total
-        expectancy = wr*avg_w + lr*avg_l
-    else:
-        expectancy = float("-inf")
+    won  = tr.get("won",{}).get("total",0)
+    lost = tr.get("lost",{}).get("total",0)
+    avg_w = tr.get("won",{}).get("pnl",{}).get("average",0.0)
+    avg_l = tr.get("lost",{}).get("pnl",{}).get("average",0.0)
+    tot   = won + lost
+    exp   = (won/tot)*avg_w + (lost/tot)*avg_l if tot else float("-inf")
 
-    return sharpe, expectancy, won, lost
+    return s, exp, won, lost
 
+def stage1(symbol):
+    """Pass 1: sweep (fast, mid1)."""
+    print(f"\n[{symbol}] PASS 1: sweeping fast & mid1")
+    results = []
+    total = sum(1 for f in FAST_RANGE for m1 in MID1_RANGE if f < m1)
+    count = 0
+    for fast in FAST_RANGE:
+        for mid1 in MID1_RANGE:
+            if fast >= mid1:
+                continue
+            count += 1
+            s,e,won,lost = backtest(symbol, fast, mid1, fast*2, fast*4, ATR_MULT)
+            print(f"  [{count}/{total}] fast={fast}, mid1={mid1} → Sharpe={s:.3f}, Exp={e:.3f}")
+            results.append({
+                "fast": fast, "mid1": mid1,
+                "sharpe": s,  "expectancy": e,
+                "trades": won+lost, "win_rate": (won/(won+lost)*100) if (won+lost) else 0
+            })
+    # sort and select top
+    results.sort(key=lambda r: r[METRIC], reverse=True)
+    selected = []
+    seen_f = set()
+    for r in results:
+        f = r["fast"]
+        if DISTINCT1 and f in seen_f:
+            continue
+        selected.append(r)
+        seen_f.add(f)
+        if len(selected) >= PASS1_N:
+            break
+    print(f"\n[{symbol}] PASS 1 selected {len(selected)} heads:")
+    for r in selected:
+        print(f"    fast={r['fast']}, mid1={r['mid1']} → {METRIC}={r[METRIC]:.3f}, trades={r['trades']}")
+    return selected
+
+def stage2(symbol, heads1):
+    """Pass 2: sweep mid2 for each head from pass1."""
+    print(f"\n[{symbol}] PASS 2: sweeping mid2 for {len(heads1)} heads")
+    results = []
+    total = sum(len(MID2_RANGE) for _ in heads1)
+    count = 0
+    for h in heads1:
+        fast, mid1 = h["fast"], h["mid1"]
+        for mid2 in MID2_RANGE:
+            if mid2 <= mid1:
+                continue
+            count += 1
+            s,e,won,lost = backtest(symbol, fast, mid1, mid2, fast*4, ATR_MULT)
+            print(f"  [{count}/{total}] fast={fast}, mid1={mid1}, mid2={mid2} → Sharpe={s:.3f}, Exp={e:.3f}")
+            results.append({
+                "fast": fast, "mid1": mid1, "mid2": mid2,
+                "sharpe": s, "expectancy": e,
+                "trades": won+lost, "win_rate": (won/(won+lost)*100) if (won+lost) else 0
+            })
+    results.sort(key=lambda r: r[METRIC], reverse=True)
+    selected = []
+    seen_m2 = set()
+    for r in results:
+        m2 = r["mid2"]
+        if DISTINCT2 and m2 in seen_m2:
+            continue
+        selected.append(r)
+        seen_m2.add(m2)
+        if len(selected) >= PASS2_N:
+            break
+    print(f"\n[{symbol}] PASS 2 selected {len(selected)} combos:")
+    for r in selected:
+        print(f"    fast={r['fast']}, mid1={r['mid1']}, mid2={r['mid2']} → {METRIC}={r[METRIC]:.3f}")
+    return selected
+
+def stage3(symbol, heads2):
+    """Pass 3: sweep mid3 for each combo from pass2."""
+    print(f"\n[{symbol}] PASS 3: sweeping mid3 for {len(heads2)} combos")
+    results = []
+    total = sum(len(MID3_RANGE) for _ in heads2)
+    count = 0
+    for h in heads2:
+        fast, mid1, mid2 = h["fast"], h["mid1"], h["mid2"]
+        for mid3 in MID3_RANGE:
+            if mid3 <= mid2:
+                continue
+            count += 1
+            s,e,won,lost = backtest(symbol, fast, mid1, mid2, mid3, ATR_MULT)
+            print(f"  [{count}/{total}] fast={fast}, mid1={mid1}, mid2={mid2}, mid3={mid3} → Sharpe={s:.3f}, Exp={e:.3f}")
+            results.append({
+                "fast": fast, "mid1": mid1, "mid2": mid2, "mid3": mid3,
+                "sharpe": s, "expectancy": e,
+                "trades": won+lost, "win_rate": (won/(won+lost)*100) if (won+lost) else 0
+            })
+    results.sort(key=lambda r: r[METRIC], reverse=True)
+    selected = []
+    seen_m3 = set()
+    for r in results:
+        m3 = r["mid3"]
+        if DISTINCT3 and m3 in seen_m3:
+            continue
+        selected.append(r)
+        seen_m3.add(m3)
+        if len(selected) >= PASS3_N:
+            break
+    print(f"\n[{symbol}] PASS 3 selected {len(selected)} final combos:")
+    for r in selected:
+        print(f"    fast={r['fast']}, mid1={r['mid1']}, mid2={r['mid2']}, mid3={r['mid3']}  "
+              f"{METRIC}={r[METRIC]:.4f}, trades={r['trades']}, win={r['win_rate']:.1f}%")
+    return selected
 
 if __name__ == "__main__":
     for SYMBOL in STOCKS:
-        out_fname = f"{SYMBOL}_hma_opt.csv"
-        print(f"\nWriting all results for {SYMBOL} into {out_fname}\n")
-
-        with open(out_fname, "w", newline="") as fout:
-            writer = csv.writer(fout)
-            writer.writerow([
-                "stage",
-                "fast", "mid1", "mid2", "mid3",
-                "sharpe", "expectancy", "won", "lost"
-            ])
-
-            # ── Stage-1 scan fast/mid1 ─────────────────────────────────────────
-            stage1 = []
-            for fast in FAST_RANGE:
-                for mid1 in MID1_RANGE:
-                    # default mid2/3 = fast×2, fast×4 for stage-1
-                    s, e, won, lost = backtest(SYMBOL, fast, mid1, fast*2, fast*4, ATR_MULT)
-                    stage1.append((fast, mid1, s, e))
-                    writer.writerow([
-                        "stage1",
-                        fast, mid1, "", "",
-                        f"{s:.6f}", f"{e:.6f}", won, lost
-                    ])
-                    print(f"[{SYMBOL}] Stage1 fast={fast}, mid1={mid1} → "
-                          f"Sharpe={s: .3f}, Exp={e: .3f}, W/L={won}/{lost}")
-
-            # pick top-N by chosen METRIC
-            idx = 2 if METRIC == "sharpe" else 3
-            top = sorted(stage1, key=lambda x: x[idx], reverse=True)[:TOP_N]
-            print(f"\n[{SYMBOL}] Top {TOP_N} fast/mid1 by {METRIC}:")
-            for f, m, sh, ex in top:
-                print(f"  fast={f}, mid1={m} → Sharpe={sh:.3f}, Exp={ex:.3f}")
-
-            # ── Stage-2 drill mid2/mid3 on those top‐pairs ─────────────────────
-            print(f"\n[{SYMBOL}] Stage2 drill on mid2/mid3:\n")
-            for fast, mid1, _, _ in top:
-                for mid2 in MID2_RANGE:
-                    for mid3 in MID3_RANGE:
-                        # enforce ascending order
-                        if not (fast < mid1 < mid2 < mid3):
-                            continue
-                        s2, e2, w2, l2 = backtest(SYMBOL, fast, mid1, mid2, mid3, ATR_MULT)
-                        writer.writerow([
-                            "stage2",
-                            fast, mid1, mid2, mid3,
-                            f"{s2:.6f}", f"{e2:.6f}", w2, l2
-                        ])
-                        print(f"  fast={fast}, mid1={mid1}, mid2={mid2}, mid3={mid3} → "
-                              f"Sharpe={s2:.3f}, Exp={e2:.3f}, W/L={w2}/{l2}")
-
-        print(f"\nDone → {out_fname}\n")
+        print(f"\n########## {SYMBOL} OPTIMIZATION ##########")
+        heads1 = stage1(SYMBOL)
+        heads2 = stage2(SYMBOL, heads1)
+        final = stage3(SYMBOL, heads2)
+        print(f"\n*** {SYMBOL} FINAL TOP {PASS3_N} COMBOS ***\n")
