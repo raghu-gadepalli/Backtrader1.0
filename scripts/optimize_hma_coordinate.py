@@ -51,10 +51,20 @@ DISTINCT3    = True       # enforce distinct mid3s in pass3
 # MID2_RANGE   = [240, 360, 480, 600, 720, 840, 960, 1080, 1200]  # explicit mids to try in pass2
 # MID3_RANGE   = [360, 480, 600, 720, 840, 960, 1080, 1200, 1440]  # explicit mids to try in pass3
 
-FAST_RANGE   = range(180, 480, 60)    # 30,60,90,120,150,180
-MID1_RANGE   = range(240, 960, 60)  # 120,240,360,480,600,720
-MID2_RANGE   = [360, 480, 600, 720, 840, 960, 1080, 1200]  # explicit mids to try in pass2
-MID3_RANGE   = [480, 600, 720, 840, 960, 1080, 1200, 1440]  # explicit mids to try in pass3
+# FAST_RANGE   = range(180, 481, 60)    # 30,60,90,120,150,180
+# MID1_RANGE   = range(240, 1501, 60)  # 120,240,360,480,600,720
+# MID2_RANGE   = [360, 480, 600, 720, 840, 960, 1080, 1200, 1320, 1440, 1560, 1680]  # explicit mids to try in pass2
+# MID3_RANGE   = [480, 600, 720, 840, 960, 1080, 1200, 1320, 1440, 1560, 1680, 1800, 1920, 2040, 2160, 2280, 2400]  # explicit mids to try in pass3
+
+# FAST_RANGE   = range(160, 481, 80)    # 30,60,90,120,150,180
+# MID1_RANGE   = range(240, 2001, 80)  # 120,240,360,480,600,720
+# MID2_RANGE   = [480, 640, 800, 960, 1120, 1280, 1440, 1600, 1760, 1920, 2080]  # explicit mids to try in pass2
+# MID3_RANGE   = [480, 640, 800, 960, 1120, 1280, 1440, 1600, 1760, 1920, 2080, 2240, 2400, 2560, 2720, 2880, 3040]  # explicit mids to try in pass3
+
+FAST_RANGE   = range(100, 501, 50)    # 30,60,90,120,150,180
+MID1_RANGE   = range(200, 2001, 100)  # 120,240,360,480,600,720
+MID2_RANGE   = [400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000]  # explicit mids to try in pass2
+MID3_RANGE   = [600, 800, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000]  # explicit mids to try in pass3
 # ──────────────────────────────────────────────────────────────────────────────
 
 def backtest(symbol, fast, mid1, mid2, mid3, atr_mult):
