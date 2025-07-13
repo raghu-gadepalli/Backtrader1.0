@@ -25,8 +25,8 @@ from data.load_candles                   import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 
 # ─── USER PARAMETERS ──────────────────────────────────────────────────────────
-STOCKS       = ["ICICIBANK", "INFY", "RELIANCE"]
-# STOCKS       = ["RELIANCE"]
+# STOCKS       = ["ICICIBANK", "INFY", "RELIANCE"]
+STOCKS       = ["RELIANCE"]
 WARMUP_START = "2025-04-01"
 END          = "2025-07-06"
 ATR_MULT     = 0.0
@@ -46,10 +46,15 @@ DISTINCT3    = True       # enforce distinct mid3s in pass3
 # MID2_RANGE   = [120, 180, 240, 360]  # explicit mids to try in pass2
 # MID3_RANGE   = [240, 360, 480, 720]  # explicit mids to try in pass3
 
-FAST_RANGE   = range(60, 360, 60)    # 30,60,90,120,150,180
-MID1_RANGE   = range(120, 960, 60)  # 120,240,360,480,600,720
-MID2_RANGE   = [240, 360, 480, 600, 720, 840, 960, 1080, 1200]  # explicit mids to try in pass2
-MID3_RANGE   = [360, 480, 600, 720, 840, 960, 1080, 1200, 1440]  # explicit mids to try in pass3
+# FAST_RANGE   = range(60, 360, 60)    # 30,60,90,120,150,180
+# MID1_RANGE   = range(120, 960, 60)  # 120,240,360,480,600,720
+# MID2_RANGE   = [240, 360, 480, 600, 720, 840, 960, 1080, 1200]  # explicit mids to try in pass2
+# MID3_RANGE   = [360, 480, 600, 720, 840, 960, 1080, 1200, 1440]  # explicit mids to try in pass3
+
+FAST_RANGE   = range(180, 480, 60)    # 30,60,90,120,150,180
+MID1_RANGE   = range(240, 960, 60)  # 120,240,360,480,600,720
+MID2_RANGE   = [360, 480, 600, 720, 840, 960, 1080, 1200]  # explicit mids to try in pass2
+MID3_RANGE   = [480, 600, 720, 840, 960, 1080, 1200, 1440]  # explicit mids to try in pass3
 # ──────────────────────────────────────────────────────────────────────────────
 
 def backtest(symbol, fast, mid1, mid2, mid3, atr_mult):
