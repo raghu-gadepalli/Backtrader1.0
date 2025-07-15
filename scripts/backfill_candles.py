@@ -17,23 +17,23 @@ from models.trade_models import Candle
 # ─── CONFIGURATION ─────────────────────────────────────────────────────────────
 
 API_KEY      = "bv185n0541aaoish"
-ACCESS_TOKEN = "1M5vnSZA0ZQrsTMli6vVXp3XmLVgyp0T"
+ACCESS_TOKEN = "CfDISGqbsQG7qCtBoY5ifoJY55l1cBg7"
 
 # Define list of (SYMBOL, TOKEN)
 
 SYMBOLS = [
     ("AXISBANK",   1510401),
     ("HDFCBANK",   341249),
-    # ("ICICIBANK",  1270529),
-    # ("INFY",       408065),
+    ("ICICIBANK",  1270529),
+    ("INFY",       408065),
     ("KOTAKBANK",  492033),
     ("MARUTI",     2815745),
     ("NIFTY 50",   256265),
     ("NIFTY BANK", 260105),
-    # ("RELIANCE",   738561),
+    ("RELIANCE",   738561),
     ("SBIN",       779521),
-    # ("SUNPHARMA",  857857),
-    # ("TATAMOTORS", 884737),
+    ("SUNPHARMA",  857857),
+    ("TATAMOTORS", 884737),
     ("TCS",        2953217),
     ("TECHM",      3465729),
 ]
