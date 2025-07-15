@@ -24,8 +24,8 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 # your best-found params per symbol
 PARAMS = {
   "ICICIBANK": dict(fast= 240, mid1= 300, mid2=480, mid3=600, atr_mult=0.0),
-#   "INFY":      dict(fast=  60, mid1= 1680, mid2= 120, mid3=240, atr_mult=0.0),
-#   "RELIANCE":  dict(fast=  60, mid1= 1680, mid2= 180, mid3=240, atr_mult=0.0),
+  "INFY":      dict(fast=  80, mid1= 120, mid2= 120, mid3=120, atr_mult=0.0),
+  "RELIANCE":  dict(fast=  520, mid1= 1680, mid2= 1680, mid3=1680, atr_mult=0.0),
 }
 
 WARMUP_START = "2025-04-01"

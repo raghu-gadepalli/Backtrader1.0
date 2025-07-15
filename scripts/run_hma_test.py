@@ -1,23 +1,16 @@
 #!/usr/bin/env python3
-"""
-scripts/run_hma_test.py
+# scripts/run_hma_test.py
 
-Self-contained grid sweep of the 'fast' HMA parameter for three symbols,
-writing Sharpe/Drawdown/Trades/Win‐rate into an Excel file, with progress prints.
-
-FASTS and OUTPUT_PATH are hard-coded at the top of the file; no CLI args needed.
-"""
-import os
-import sys
-from pathlib import Path
-
-# force headless plotting for backtrader
-os.environ["MPLBACKEND"] = "Agg"
-import backtrader as bt
-
+import os, sys
 import pandas as pd
 
-# adjust this import if your project structure differs
+# force headless plotting
+os.environ["MPLBACKEND"] = "Agg"
+import matplotlib; matplotlib.use("Agg", force=True)
+
+import backtrader as bt
+
+# ─── project root on path ─────────────────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -25,107 +18,87 @@ if _ROOT not in sys.path:
 from data.load_candles                   import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 
-# ─────── HARD-CODED SETTINGS ─────────
+RESULTS_DIR = os.path.join(_ROOT, "results")
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# List of 'fast' HMA values to test
-FASTS = [30, 60, 120, 180, 240]
+# ─── your “time-based” HMA lookbacks (in minutes) ─────────────────────────────
+MIN_FAST  = 80    # 80 minutes
+MIN_SLOW  = 120   # 120 minutes
+# mid2/mid3 are inert for a pure crossover
+# ATR filter left off here for brevity
+# ──────────────────────────────────────────────────────────────────────────────
 
-# Output Excel file
-OUTPUT_PATH = Path("hma_fast_sweep.xlsx")
+# which sampling rates (in minutes) to try
+SAMPLES = [1, 2, 3, 5]
 
-# Fixed mid legs (must satisfy fast < mid1 < mid2 < mid3)
-FIXED_MIDS = {
-    "ICICIBANK": {"mid1":  540, "mid2":  900, "mid3": 1440},
-    "INFY":      {"mid1":  120, "mid2":  240, "mid3": 1680},
-    "RELIANCE":  {"mid1":  180, "mid2":  240, "mid3": 1680},
+# symbols & params (we’ll ignore mid2/mid3 and set them = slow_bars)
+SYMBOLS = ["INFY", "RELIANCE"]
+PARAMS  = {
+    "INFY":     dict(atr_mult=0.0),
+    "RELIANCE": dict(atr_mult=0.0),
 }
 
-# Warm-up start and evaluation periods
 WARMUP_START = "2025-04-01"
-EVAL_PERIODS = [
-    ("2025-05-01", "2025-05-31", "MAY"),
-    ("2025-06-01", "2025-06-30", "JUN")
-]
+TRAIN_START  = "2025-05-01"
+TRAIN_END    = "2025-05-31"
+TEST_START   = "2025-06-01"
+TEST_END     = "2025-06-30"
 
-# ─────── END HARD-CODED SETTINGS ──────
+def run_sample(symbol, sample_min, period_start, period_end):
+    # 1) resample
+    df = load_candles(symbol, WARMUP_START, period_end)
+    df.index = pd.to_datetime(df.index)
+    df_s = (
+        df.resample(f"{sample_min}min")
+          .agg({"open":"first", "high":"max", "low":"min", "close":"last", "volume":"sum"})
+          .dropna()
+    )
 
-def run_period(symbol, w_start, p_start, p_end, params):
-    """
-    Run Cerebro from w_start→p_end, return metrics for p_start→p_end.
-    """
+    # 2) compute BAR counts to preserve minute lookbacks
+    fast_bars  = max(1, int(round(MIN_FAST  / sample_min)))
+    slow_bars  = max(1, int(round(MIN_SLOW  / sample_min)))
+    # mid2 = mid3 = slow to disable extra legs
+    mid2_bars  = slow_bars
+    mid3_bars  = slow_bars
+
     cerebro = bt.Cerebro()
     cerebro.addanalyzer(bt.analyzers.SharpeRatio,  _name="sharpe",
                         timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.DrawDown,     _name="drawdown")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer,_name="trades")
 
-    df = load_candles(symbol, w_start, p_end)
-    data = bt.feeds.PandasData(dataname=df,
+    data = bt.feeds.PandasData(dataname=df_s,
                                timeframe=bt.TimeFrame.Minutes,
                                compression=1)
-    cerebro.adddata(data, name=symbol)
+    cerebro.adddata(data, name=f"{symbol}-{sample_min}m")
 
     cerebro.addstrategy(HmaStateStrengthStrategy,
-                        fast     = params["fast"],
-                        mid1     = params["mid1"],
-                        mid2     = params["mid2"],
-                        mid3     = params["mid3"],
-                        atr_mult = params["atr_mult"],
+                        fast     = fast_bars,
+                        mid1     = slow_bars,
+                        mid2     = mid2_bars,
+                        mid3     = mid3_bars,
+                        atr_mult = PARAMS[symbol]["atr_mult"],
                         printlog = False)
 
     strat = cerebro.run()[0]
-    sharpe = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
-    dd     = strat.analyzers.drawdown.get_analysis().max.drawdown
-    tr     = strat.analyzers.trades.get_analysis()
-    won    = tr.get("won", {}).get("total", 0)
-    lost   = tr.get("lost", {}).get("total", 0)
-    total  = tr.get("total", {}).get("closed", 0)
-    winr   = (won / total * 100) if total else 0.0
+    sa = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
+    dd = strat.analyzers.drawdown.get_analysis().max.drawdown
+    tr = strat.analyzers.trades.get_analysis()
+    won, lost = tr.get("won",{}).get("total",0), tr.get("lost",{}).get("total",0)
+    total = tr.get("total",{}).get("closed",0)
+    winr  = (won/total*100) if total else 0.0
 
-    return {
-        "symbol":    symbol,
-        "fast":      params["fast"],
-        "period":    f"{p_start}-{p_end}",
-        "sharpe":    round(sharpe, 4),
-        "drawdown":  round(dd, 2),
-        "trades":    total,
-        "win_rate":  round(winr, 1),
-        "wins":      won,
-        "losses":    lost
-    }
-
-def main():
-    print(f"Starting HMA fast sweep: FASTS={FASTS}, OUTPUT={OUTPUT_PATH}\n")
-
-    results = []
-    total_iters = len(FASTS) * len(FIXED_MIDS) * len(EVAL_PERIODS)
-    iter_count = 0
-
-    for fast in FASTS:
-        print(f"=== Testing fast = {fast} ===")
-        for symbol, mids in FIXED_MIDS.items():
-            # enforce ordering constraint
-            if not (fast < mids["mid1"] < mids["mid2"] < mids["mid3"]):
-                print(f"  ↳ Skipping {symbol}: fast({fast}) !< mid1({mids['mid1']}) < mid2({mids['mid2']}) < mid3({mids['mid3']})")
-                continue
-
-            print(f"  ↳ Symbol: {symbol}")
-            params = {"fast": fast, **mids, "atr_mult": 0.0}
-
-            for p_start, p_end, label in EVAL_PERIODS:
-                iter_count += 1
-                print(f"    [{iter_count}/{total_iters}] {label} {p_start}→{p_end} ...", end=" ")
-
-                row = run_period(symbol, WARMUP_START, p_start, p_end, params)
-                print(f"Sharpe={row['sharpe']}, Trades={row['trades']}, Win={row['win_rate']}%")
-
-                results.append(row)
-
-    # build DataFrame and write to Excel
-    df = pd.DataFrame(results)
-    df = df[["symbol", "fast", "period", "sharpe", "drawdown", "trades", "win_rate", "wins", "losses"]]
-    df.to_excel(OUTPUT_PATH, index=False)
-    print(f"\nDone! Results written to {OUTPUT_PATH}")
+    print(f"\n--- {symbol} | {period_start}→{period_end} @ {sample_min}m "
+          f"(HMA={fast_bars}⇔{slow_bars} bars ≈{fast_bars*sample_min}⇔{slow_bars*sample_min}min) ---")
+    print(f"Sharpe Ratio : {sa:.2f}")
+    print(f"Max Drawdown : {dd:.2f}%")
+    print(f"Total Trades : {total}")
+    print(f"Win Rate     : {winr:.1f}% ({won}W/{lost}L)")
 
 if __name__ == "__main__":
-    main()
+    for sym in SYMBOLS:
+        for sample in SAMPLES:
+            # train
+            run_sample(sym, sample, TRAIN_START, TRAIN_END)
+            # test
+            run_sample(sym, sample, TEST_START, TEST_END)
