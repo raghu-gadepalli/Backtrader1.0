@@ -20,8 +20,8 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 import backtrader as bt
-from data.load_candles                   import load_candles
-from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
+from data.load_candles         import load_candles
+from strategies.hma_multitrend import HmaMultiTrendStrategy
 
 # ─── USER PARAMETERS ──────────────────────────────────────────────────────────
 STOCKS       = ["ICICIBANK", "INFY", "RELIANCE"]
@@ -73,7 +73,7 @@ def backtest(symbol, fast, mid1, mid2, mid3, atr_mult):
                                timeframe=bt.TimeFrame.Minutes,
                                compression=1)
     cerebro.adddata(data)
-    cerebro.addstrategy(HmaStateStrengthStrategy,
+    cerebro.addstrategy(HmaMultiTrendStrategy,
                         fast=fast, mid1=mid1,
                         mid2=mid2, mid3=mid3,
                         atr_mult=atr_mult, printlog=False)

@@ -2,7 +2,7 @@
 
 import backtrader as bt
 
-class HmaTrendStrategy(bt.Strategy):
+class HmaCrossoverStrategy(bt.Strategy):
     params = (
         ("fast",        200),
         ("slow",        300),

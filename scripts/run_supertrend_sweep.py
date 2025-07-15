@@ -3,14 +3,12 @@
 
 import os
 import sys
-import csv
+import backtrader as bt
 import pandas as pd
 
-# force headless plotting
+# headless Matplotlib
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib; matplotlib.use("Agg", force=True)
-
-import backtrader as bt
 
 # ─── project root ───────────────────────────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -22,24 +20,23 @@ from data.load_candles import load_candles
 # ─── SuperTrend indicator ──────────────────────────────────────────────────────
 class SuperTrend(bt.Indicator):
     lines = ("st",)
-    params = dict(period=60, multiplier=3.0)
+    params = dict(period=120, multiplier=3.0)
 
     def __init__(self):
-        atr = bt.ind.ATR(self.data, period=self.p.period)
-        hl2 = (self.data.high + self.data.low) / 2
+        atr   = bt.ind.ATR(self.data, period=self.p.period)
+        hl2   = (self.data.high + self.data.low) / 2
         upper = hl2 + self.p.multiplier * atr
         lower = hl2 - self.p.multiplier * atr
 
-        # recursive ST line: stays within last band until price flips
         self.l.st = bt.If(
             self.data.close > self.l.st(-1),
             bt.Min(upper, self.l.st(-1)),
             bt.Max(lower, self.l.st(-1)),
         )
 
-# ─── simple strategy using only SuperTrend ─────────────────────────────────────
-class STOnlyStrategy(bt.Strategy):
-    params = dict(st_period=60, st_mult=2.0)
+# ─── SuperTrend‐only strategy ──────────────────────────────────────────────────
+class ST(bt.Strategy):
+    params = dict(st_period=120, st_mult=3.0)
 
     def __init__(self):
         self.st = SuperTrend(self.data,
@@ -47,41 +44,52 @@ class STOnlyStrategy(bt.Strategy):
                              multiplier=self.p.st_mult)
 
     def next(self):
-        if not self.position and self.data.close[0] > self.st[0]:
+        price = self.data.close[0]
+        if not self.position and price > self.st[0]:
             self.buy()
-        elif self.position and self.data.close[0] < self.st[0]:
+        elif self.position and price < self.st[0]:
             self.close()
 
-# ─── configuration ─────────────────────────────────────────────────────────────
+# ─── symbols & parameter grid ─────────────────────────────────────────────────
 SYMBOLS = [
-    "AXISBANK","HDFCBANK","ICICIBANK","INFY","KOTAKBANK","MARUTI",
-    "NIFTY 50","NIFTY BANK","RELIANCE","SBIN","SUNPHARMA",
-    "TATAMOTORS","TCS","TECHM"
+    "AXISBANK", "HDFCBANK", "ICICIBANK", "INFY",
+    "KOTAKBANK", "MARUTI", "RELIANCE", "SBIN",
+    "SUNPHARMA", "TECHM"
 ]
-WARMUP      = "2025-04-01"
-TRAIN_START = "2025-05-01"
-TRAIN_END   = "2025-05-31"
-TEST_START  = "2025-06-01"
-TEST_END    = "2025-06-30"
 
-# PERIODS = [30, 40, 60, 80, 120, 160, 180, 240]
-PERIODS = [20]
+PERIODS = [30, 40, 60, 80, 120, 160, 180, 240]
 MULTS   = [1.8, 2.0, 2.2, 2.5, 3.0]
 
-OUT_DIR = os.path.join(_ROOT, "results")
-os.makedirs(OUT_DIR, exist_ok=True)
-OUT_CSV = os.path.join(OUT_DIR, "supertrend_sweep.csv")
+# ─── walk‑forward windows for tuning ───────────────────────────────────────────
+WINDOWS = [
+    {
+        "label": "Jan→Feb",
+        "warm":  "2025-01-01",
+        "start": "2025-02-01",
+        "end":   "2025-02-28",
+    },
+    {
+        "label": "Feb→Mar",
+        "warm":  "2025-02-01",
+        "start": "2025-03-01",
+        "end":   "2025-03-31",
+    },
+    {
+        "label": "Mar→Apr",
+        "warm":  "2025-03-01",
+        "start": "2025-04-01",
+        "end":   "2025-04-30",
+    },
+]
 
-# ─── backtest & metric extraction ───────────────────────────────────────────────
-def run_bt(symbol, start, end, per, mult):
-    # load and resample
-    df = load_candles(symbol, WARMUP, end)
+def run_sweep(symbol, warm, start, end, period, mult):
+    # load warm‑up through end
+    df = load_candles(symbol, warm, end)
     df.index = pd.to_datetime(df.index)
 
     cerebro = bt.Cerebro()
     cerebro.addanalyzer(bt.analyzers.SharpeRatio,   _name="sharpe",
-                        timeframe=bt.TimeFrame.Minutes,
-                        riskfreerate=0.0)
+                        timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
 
@@ -90,59 +98,40 @@ def run_bt(symbol, start, end, per, mult):
                                compression=1)
     cerebro.adddata(data, name=symbol)
 
-    cerebro.addstrategy(STOnlyStrategy,
-                        st_period=per,
-                        st_mult=  mult)
+    cerebro.addstrategy(
+        ST,
+        st_period=period,
+        st_mult=mult
+    )
 
     strat = cerebro.run()[0]
+    sr    = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
+    dd    = strat.analyzers.drawdown.get_analysis().max.drawdown
+    tr    = strat.analyzers.trades.get_analysis()
+    won   = tr.get("won",  {}).get("total", 0)
+    lost  = tr.get("lost", {}).get("total",   0)
+    tot   = tr.get("total",{}).get("closed",  0)
+    wr    = (won / tot * 100) if tot else 0.0
 
-    # metrics
-    sa = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
-    dd = strat.analyzers.drawdown.get_analysis().max.drawdown
-    tr = strat.analyzers.trades.get_analysis()
-    won  = tr.get("won", {}).get("total", 0)
-    lost = tr.get("lost", {}).get("total", 0)
-    total = won + lost
-    winr = (won/total*100) if total else 0.0
+    print(f"\n--- {symbol} | {WINDOWS_LABEL} @ ST({period},{mult}) "
+          f"[warm‑up {warm} ▶ test {start}→{end}] ---")
+    print(f"Sharpe Ratio : {sr:.2f}")
+    print(f"Max Drawdown : {dd:.2f}%")
+    print(f"Total Trades : {tot}")
+    print(f"Win Rate     : {wr:.1f}% ({won}W/{lost}L)")
 
-    return {
-        "symbol":    symbol,
-        "phase":     "train" if start==TRAIN_START else "test",
-        "start":     start,
-        "end":       end,
-        "period":    per,
-        "mult":      mult,
-        "sharpe":    round(sa, 4),
-        "max_dd":    round(dd, 4),
-        "trades":    total,
-        "win_rate":  round(winr, 2),
-        "won":       won,
-        "lost":      lost
-    }
-
-# ─── main sweep ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    # open CSV and write header
-    with open(OUT_CSV, "w", newline="") as f:
-        cols = ["symbol","phase","start","end",
-                "period","mult","sharpe","max_dd",
-                "trades","win_rate","won","lost"]
-        writer = csv.DictWriter(f, fieldnames=cols)
-        writer.writeheader()
-
-        # loop through all combinations
-        for per in PERIODS:
+    for symbol in SYMBOLS:
+        for period in PERIODS:
             for mult in MULTS:
-                for sym in SYMBOLS:
-                    for (start,end) in [(TRAIN_START,TRAIN_END),
-                                        (TEST_START, TEST_END)]:
-                        out = run_bt(sym, start, end, per, mult)
-                        # print to console
-                        print(f"{out['symbol']:10s} | {out['start']}→{out['end']} "
-                              f"@ ST({per},{mult:.1f}) → "
-                              f"Sharpe={out['sharpe']:.2f}, DD={out['max_dd']:.2f}%, "
-                              f"Trades={out['trades']}, Win={out['win_rate']:.1f}%")
-                        # write row
-                        writer.writerow(out)
-
-    print(f"\n✔ All results written to {OUT_CSV}\n")
+                for w in WINDOWS:
+                    # make WINDOWS_LABEL available inside run_sweep
+                    WINDOWS_LABEL = w["label"]
+                    run_sweep(
+                        symbol,
+                        warm   = w["warm"],
+                        start  = w["start"],
+                        end    = w["end"],
+                        period = period,
+                        mult   = mult
+                    )

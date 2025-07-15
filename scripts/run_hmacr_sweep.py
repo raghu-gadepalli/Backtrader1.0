@@ -8,13 +8,15 @@ import backtrader as bt
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 
+from strategies.hma_crossover import HmaCrossoverStrategy
+
 # ─── PROJECT ROOT ON PATH ──────────────────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from data.load_candles import load_candles
-from strategies.HmaTrendStrategy import HmaTrendStrategy
+from strategies.hma_crossover import HmaCrossoverStrategy
 
 # ─── USER CONFIGURATION ────────────────────────────────────────────────────────
 STOCKS      = ["AXISBANK","HDFCBANK"]
@@ -84,7 +86,7 @@ def optimize_all():
                 cerebro.adddata(data, name=symbol)
 
                 cerebro.addstrategy(
-                    HmaTrendStrategy,
+                    HmaCrossoverStrategy,
                     fast=fast,
                     slow=slow,
                     atr_mult=0.0,

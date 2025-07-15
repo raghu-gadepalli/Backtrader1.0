@@ -34,7 +34,7 @@ def derive_hma_state_strength(rec: Dict[str, Any]) -> Tuple[TrendType, str]:
     return TrendType.NO_TREND, "Neutral"
 
 
-class HmaStateStrengthStrategy(bt.Strategy):
+class HmaMultiTrendStrategy(bt.Strategy):
     params = dict(
         fast          = 600,    # tuned fast HMA
         mid1          = 760,    # tuned mid HMA #1
