@@ -6,15 +6,15 @@ import backtrader as bt
 from data.load_candles    import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 
-# ─── Global settings ─────────────────────────────────────────────────────────
+#  Global settings 
 WARMUP_START = "2025-04-01"
 END          = "2025-07-06"
 ATR_MULT     = 0.0
 
-# ─── Fixed ICICIBANK params ──────────────────────────────────────────────────
+#  Fixed ICICIBANK params 
 ICICI = dict(fast=120, mid1=720, mid2=240, mid3=480, atr_mult=ATR_MULT)
 
-# ─── Candidate grids for INFY & RELIANCE ────────────────────────────────────
+#  Candidate grids for INFY & RELIANCE 
 INFY_CANDS = {
     "60-grid": dict(fast=160, mid1=1600, mid2=320,  mid3=640,  atr_mult=ATR_MULT),
     "80-grid": dict(fast=700, mid1=560,  mid2=1400, mid3=2800, atr_mult=ATR_MULT),

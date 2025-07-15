@@ -1,6 +1,6 @@
 import backtrader as bt
 
-# ─── SuperTrend indicator ──────────────────────────────────────────────────────
+#  SuperTrend indicator 
 class SuperTrend(bt.Indicator):
     lines = ("st",)
     params = dict(period=120, multiplier=3.0)
@@ -19,8 +19,8 @@ class SuperTrend(bt.Indicator):
         )
 
 
-# ─── SuperTrend‐only strategy ──────────────────────────────────────────────────
-class ST(bt.Strategy):              # ← strategy is now simply “ST”
+#  SuperTrendonly strategy 
+class ST(bt.Strategy):              #  strategy is now simply ST
     params = dict(st_period=120, st_mult=3.0)
 
     def __init__(self):

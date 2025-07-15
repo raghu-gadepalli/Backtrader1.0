@@ -4,14 +4,14 @@
 import os
 import sys
 
-# ─── FORCE HEADLESS AGG BACKEND ────────────────────────────────────────────────
+#  FORCE HEADLESS AGG BACKEND 
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib; matplotlib.use("Agg", force=True)
 
 import backtrader as bt
 import pandas     as pd
 
-# ─── PROJECT ROOT ON PATH ──────────────────────────────────────────────────────
+#  PROJECT ROOT ON PATH 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -19,16 +19,16 @@ if _ROOT not in sys.path:
 from data.load_candles           import load_candles
 from strategies.HmaTrendStrategy import HmaTrendStrategy
 
-# ─── USER CONFIGURATION ────────────────────────────────────────────────────────
+#  USER CONFIGURATION 
 SYMBOL      = "INFY"
 START       = "2025-04-01"
 END         = "2025-07-06"
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# fast from 200 → 1000 step 40
+# fast from 200  1000 step 40
 fast_vals = list(range(80, 1001, 40))
-# slow from 240 → 3000 step 40
+# slow from 240  3000 step 40
 slow_vals = list(range(120, 3001, 40))
 
 
@@ -38,7 +38,7 @@ def optimize():
 
     records = []
     total_runs = len(fast_vals) * len(slow_vals)
-    print(f"🔍 Running {total_runs} combos (fast, slow) with 40-step…\n")
+    print(f" Running {total_runs} combos (fast, slow) with 40-step\n")
 
     # 2) Loop over each (fast, slow) pair
     for fast in fast_vals:
@@ -92,7 +92,7 @@ def optimize():
             })
 
             sharpe_str = f"{sharpe:.4f}" if raw_sharpe is not None else "N/A"
-            print(f"✓ f={fast:<4} s={slow:<4} → Sharpe {sharpe_str}, Win% {winpct:.1f}%")
+            print(f" f={fast:<4} s={slow:<4}  Sharpe {sharpe_str}, Win% {winpct:.1f}%")
 
     # 3) Build & save results DataFrame
     df_res = pd.DataFrame(records)
@@ -101,7 +101,7 @@ def optimize():
     df_res.to_csv(out_csv, index=False)
 
     # 4) Display top 10
-    print("\n📊 Top 10 HMA (fast, slow) by Sharpe:\n")
+    print("\n Top 10 HMA (fast, slow) by Sharpe:\n")
     print(df_res.head(10).to_string(index=False))
     print(f"\nFull results written to {out_csv}")
 

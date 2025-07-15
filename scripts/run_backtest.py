@@ -10,7 +10,7 @@ import matplotlib; matplotlib.use("Agg", force=True)
 
 import backtrader as bt
 
-# ─── project root ───────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -18,7 +18,7 @@ if _ROOT not in sys.path:
 from data.load_candles     import load_candles
 from strategies.supertrend import SuperTrend, ST
 
-# ─── per‐symbol SuperTrend settings ─────────────────────────────────────────────
+#  persymbol SuperTrend settings 
 ST_PARAMS = {
     "AXISBANK":  dict(period=60,  mult=2.0),
     "HDFCBANK":  dict(period=120, mult=1.8),
@@ -30,10 +30,10 @@ ST_PARAMS = {
     "TECHM":     dict(period=120, mult=1.8),
 }
 
-# ─── warm‑up & test windows ────────────────────────────────────────────────────
-WARMUP_START = "2025-01-01"   # load from Jan 1 to let ST settle
-TEST_START   = "2025-02-01"   # reporting begins Feb 1
-TEST_END     = "2025-02-28"   # through Feb 28
+#  warmup & test windows 
+WARMUP_START = "2025-01-01"   # load from Jan1 to let ST settle
+TEST_START   = "2025-02-01"   # reporting begins Feb1
+TEST_END     = "2025-02-28"   # through Feb28
 
 def run_backtest(symbol, warmup, test_start, test_end, st_period, st_mult):
     # load full warmup + test data
@@ -67,7 +67,7 @@ def run_backtest(symbol, warmup, test_start, test_end, st_period, st_mult):
     winrate = (won/total*100) if total else 0.0
 
     # report only the test window
-    print(f"\n--- {symbol} | {test_start} → {test_end} @ ST({st_period},{st_mult}) ---")
+    print(f"\n--- {symbol} | {test_start}  {test_end} @ ST({st_period},{st_mult}) ---")
     print(f"Sharpe Ratio : {sharpe:.2f}")
     print(f"Max Drawdown : {dd:.2f}%")
     print(f"Total Trades : {total}")

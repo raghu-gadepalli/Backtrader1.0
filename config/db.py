@@ -34,7 +34,7 @@ class DatabaseConnectionError(Exception):
 def get_session() -> Generator[Session, None, None]:
     """
     Yield a SQLAlchemy Session. Automatically rolls back on error,
-    and raises DatabaseConnectionError if there’s an OperationalError.
+    and raises DatabaseConnectionError if theres an OperationalError.
     """
     session = SessionLocal()
     try:

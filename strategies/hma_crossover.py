@@ -8,7 +8,7 @@ class HmaCrossoverStrategy(bt.Strategy):
         ("slow",        300),
         ("printlog",    False),
         ("atr_period",  14),
-        ("atr_mult",    1.0),   # only take crossovers if gap > atr_mult × ATR
+        ("atr_mult",    1.0),   # only take crossovers if gap > atr_mult  ATR
     )
 
     def __init__(self):
@@ -30,7 +30,7 @@ class HmaCrossoverStrategy(bt.Strategy):
             return
         dt0 = self.data.datetime[0]
         dt  = bt.num2date(dt0)
-        print(f"{dt.isoformat()} — {txt}")
+        print(f"{dt.isoformat()}  {txt}")
 
     def notify_order(self, order):
         if order.status in (order.Submitted, order.Accepted):
@@ -61,22 +61,22 @@ class HmaCrossoverStrategy(bt.Strategy):
 
         # ENTRY LONG
         if pos == 0 and prev_f <= prev_s and curr_f > curr_s and gap > thresh:
-            self.log(f"SIGNAL → BUY (gap {gap:.2f} > {thresh:.2f})")
+            self.log(f"SIGNAL  BUY (gap {gap:.2f} > {thresh:.2f})")
             self.order = self.buy()
 
         # ENTRY SHORT
         elif pos == 0 and prev_f >= prev_s and curr_f < curr_s and gap > thresh:
-            self.log(f"SIGNAL → SELL (gap {gap:.2f} > {thresh:.2f})")
+            self.log(f"SIGNAL  SELL (gap {gap:.2f} > {thresh:.2f})")
             self.order = self.sell()
 
         # EXIT LONG
         elif pos > 0 and curr_f < curr_s:
-            self.log("SIGNAL → EXIT LONG")
+            self.log("SIGNAL  EXIT LONG")
             self.order = self.close()
 
         # EXIT SHORT
         elif pos < 0 and curr_f > curr_s:
-            self.log("SIGNAL → EXIT SHORT")
+            self.log("SIGNAL  EXIT SHORT")
             self.order = self.close()
 
     def stop(self):

@@ -2,13 +2,13 @@
 import os
 import sys
 
-# ─── ensure project root is on PYTHONPATH ───────────────────────────────────────
+#  ensure project root is on PYTHONPATH 
 # so that `import config` and `import models` work even when running this file directly
 _PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-# ─── imports ────────────────────────────────────────────────────────────────────
+#  imports 
 import pandas as pd
 from sqlalchemy import text
 
@@ -50,4 +50,4 @@ if __name__ == "__main__":
     # Quick smoke test when running python data/load_candles.py
     df = load_candles("INFY", "2025-04-01", "2025-07-06")
     print("Loaded rows:", len(df))
-    print(df.head(), "\n…\n", df.tail())
+    print(df.head(), "\n\n", df.tail())

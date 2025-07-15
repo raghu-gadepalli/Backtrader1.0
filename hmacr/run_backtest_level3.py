@@ -2,14 +2,14 @@
 import os, sys
 from datetime import datetime
 
-# ─── Force Agg backend (headless) ─────────────────────────────────────────────
+#  Force Agg backend (headless) 
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib; matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 
 import backtrader as bt
 
-# ─── Project root on path ─────────────────────────────────────────────────────
+#  Project root on path 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -17,7 +17,7 @@ if _ROOT not in sys.path:
 from data.load_candles             import load_candles
 from strategies.HmaLevel3Strategy  import HmaLevel3Strategy
 
-# ─── Ensure results dir ───────────────────────────────────────────────────────
+#  Ensure results dir 
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 

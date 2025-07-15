@@ -3,18 +3,18 @@
 scripts/optimize_hma_coordinate.py
 
 Three-pass coordinate descent for multi-HMA, logging **all** stage results:
-  stage 1 → fast, mid1
-  stage 2 → + mid2
-  stage 3 → + mid3
+  stage 1  fast, mid1
+  stage 2  + mid2
+  stage 3  + mid3
 
-Outputs one CSV per symbol with a “stage” column, then prints & writes the final top combos.
+Outputs one CSV per symbol with a stage column, then prints & writes the final top combos.
 """
 
 import os
 import sys
 import csv
 
-# ─── project root on path ─────────────────────────────────────────────────────
+#  project root on path 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -23,7 +23,7 @@ import backtrader as bt
 from data.load_candles         import load_candles
 from strategies.hma_multitrend import HmaMultiTrendStrategy
 
-# ─── USER PARAMETERS ──────────────────────────────────────────────────────────
+#  USER PARAMETERS 
 STOCKS       = ["ICICIBANK", "INFY", "RELIANCE"]
 WARMUP_START = "2025-04-01"
 END          = "2025-07-06"
@@ -60,7 +60,7 @@ MID3_RANGES = {
     "INFY":      [240, 360, 480, 720],
     "RELIANCE":  [1680, 2160, 2880],
 }
-# ──────────────────────────────────────────────────────────────────────────────
+# 
 
 def backtest(symbol, fast, mid1, mid2, mid3, atr_mult):
     cerebro = bt.Cerebro(stdstats=False)
@@ -116,7 +116,7 @@ def optimize_symbol(symbol):
             cnt += 1
             s,e,won,lost = backtest(symbol, fast, mid1, fast*2, fast*4, ATR_MULT)
             trades = won+lost; wr = (won/trades*100) if trades else 0
-            print(f"  [{cnt}/{total}] fast={fast}, mid1={mid1} → Sharpe={s:.3f}, Exp={e:.3f}, Trades={trades}")
+            print(f"  [{cnt}/{total}] fast={fast}, mid1={mid1}  Sharpe={s:.3f}, Exp={e:.3f}, Trades={trades}")
             rec = dict(stage=1, fast=fast, mid1=mid1, mid2="", mid3="",
                        sharpe=s, expectancy=e, trades=trades, win_rate=wr)
             writer.writerow(rec.values())
@@ -143,7 +143,7 @@ def optimize_symbol(symbol):
             cnt += 1
             s,e,won,lost = backtest(symbol, fast, mid1, mid2, fast*4, ATR_MULT)
             trades = won+lost; wr = (won/trades*100) if trades else 0
-            print(f"  [{cnt}/{total}] fast={fast}, mid1={mid1}, mid2={mid2} → Sharpe={s:.3f}, Exp={e:.3f}, Trades={trades}")
+            print(f"  [{cnt}/{total}] fast={fast}, mid1={mid1}, mid2={mid2}  Sharpe={s:.3f}, Exp={e:.3f}, Trades={trades}")
             rec = dict(stage=2, fast=fast, mid1=mid1, mid2=mid2, mid3="",
                        sharpe=s, expectancy=e, trades=trades, win_rate=wr)
             writer.writerow(rec.values())
@@ -170,14 +170,14 @@ def optimize_symbol(symbol):
             cnt += 1
             s,e,won,lost = backtest(symbol, fast, mid1, mid2, mid3, ATR_MULT)
             trades = won+lost; wr = (won/trades*100) if trades else 0
-            print(f"  [{cnt}/{total}] fast={fast}, mid1={mid1}, mid2={mid2}, mid3={mid3} → Sharpe={s:.3f}, Exp={e:.3f}, Trades={trades}")
+            print(f"  [{cnt}/{total}] fast={fast}, mid1={mid1}, mid2={mid2}, mid3={mid3}  Sharpe={s:.3f}, Exp={e:.3f}, Trades={trades}")
             rec = dict(stage=3, fast=fast, mid1=mid1, mid2=mid2, mid3=mid3,
                        sharpe=s, expectancy=e, trades=trades, win_rate=wr)
             writer.writerow(rec.values())
             s3_results.append(rec)
 
     f_all.close()
-    print(f"\n✔ Wrote all stage-1/2/3 rows to {out_all}")
+    print(f"\n Wrote all stage-1/2/3 rows to {out_all}")
 
     # pick final survivors and write separate CSV
     s3_results.sort(key=sort_key)
@@ -190,7 +190,7 @@ def optimize_symbol(symbol):
             w.writerow([r["fast"],r["mid1"],r["mid2"],r["mid3"],
                         f"{r[METRIC]:.6f}", f"{r['expectancy']:.6f}",
                         r["trades"], f"{r['win_rate']:.1f}%"])
-    print(f"✔ Wrote top {PASS3_N} combos to {out_final}\n")
+    print(f" Wrote top {PASS3_N} combos to {out_final}\n")
 
 if __name__ == "__main__":
     for sym in STOCKS:

@@ -11,7 +11,7 @@ import os, sys
 import backtrader as bt
 import pandas as pd
 
-# ─── project root on path ─────────────────────────────────────────────────────
+#  project root on path 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -19,8 +19,8 @@ if _ROOT not in sys.path:
 from data.load_candles         import load_candles
 from strategies.hma_multitrend import HmaMultiTrendStrategy
 
-# ─── USER PARAMETERS ──────────────────────────────────────────────────────────
-SYMBOL       = "INFY"       # ← change to "RELIANCE" or "ICICIBANK"
+#  USER PARAMETERS 
+SYMBOL       = "INFY"       #  change to "RELIANCE" or "ICICIBANK"
 WARMUP_START = "2025-04-01"
 END          = "2025-07-06"
 ATR_MULT     = 0.0
@@ -34,7 +34,7 @@ PASS3_N      = 3            # final combos
 DISTINCT1    = True         # enforce distinct fast in pass1 shortlist
 DISTINCT2    = True         # enforce distinct mid2 in pass2 shortlist
 
-# ─── per-symbol HMA grids ─────────────────────────────────────────────────────
+#  per-symbol HMA grids 
 # FAST_RANGE   = range(80, 400, 80)
 # MID1_RANGE   = [int(1.5*f) for f in FAST_RANGE]
 # MID2_RANGE   = [3*f        for f in FAST_RANGE]
@@ -44,7 +44,7 @@ FAST_RANGE = [200, 250, 300, 350, 400]
 MID1_RANGE = [int(1.5*f) for f in FAST_RANGE]
 MID2_RANGE = [3*f for f in FAST_RANGE]
 MID3_RANGE = [6*f for f in FAST_RANGE]
-# ──────────────────────────────────────────────────────────────────────────────
+# 
 
 def backtest(symbol, fast, mid1, mid2, mid3, atr_mult):
     cerebro = bt.Cerebro(stdstats=False)
@@ -83,11 +83,11 @@ def optimize_one(symbol):
     # PASS 1
     combos1 = [(f, m1) for f in FAST_RANGE for m1 in MID1_RANGE if f < m1]
     total1 = len(combos1)
-    print(f"[{symbol}] PASS 1: {total1} fast×mid1 combos")
+    print(f"[{symbol}] PASS 1: {total1} fastmid1 combos")
     for i, (fast, mid1) in enumerate(combos1, 1):
         s,e,won,lost = backtest(symbol, fast, mid1, fast*2, fast*4, ATR_MULT)
         trades = won + lost
-        print(f"  [{i}/{total1}] fast={fast}, mid1={mid1} → S={s:.3f}, E={e:.3f}, T={trades}")
+        print(f"  [{i}/{total1}] fast={fast}, mid1={mid1}  S={s:.3f}, E={e:.3f}, T={trades}")
         stage1.append({
             "stage":1, "fast":fast, "mid1":mid1, "mid2":None, "mid3":None,
             "sharpe":s, "expectancy":e, "trades":trades,
@@ -111,7 +111,7 @@ def optimize_one(symbol):
     for i,(fast,mid1,mid2) in enumerate(combos2,1):
         s,e,won,lost = backtest(symbol, fast, mid1, mid2, fast*4, ATR_MULT)
         trades = won + lost
-        print(f"  [{i}/{total2}] fast={fast}, mid1={mid1}, mid2={mid2} → S={s:.3f}, E={e:.3f}, T={trades}")
+        print(f"  [{i}/{total2}] fast={fast}, mid1={mid1}, mid2={mid2}  S={s:.3f}, E={e:.3f}, T={trades}")
         stage2.append({
             "stage":2, "fast":fast, "mid1":mid1, "mid2":mid2, "mid3":None,
             "sharpe":s, "expectancy":e, "trades":trades,
@@ -136,14 +136,14 @@ def optimize_one(symbol):
         s,e,won,lost = backtest(symbol, fast, mid1, mid2, mid3, ATR_MULT)
         trades = won + lost
         print(f"  [{i}/{total3}] fast={fast}, mid1={mid1}, mid2={mid2}, mid3={mid3}"
-              f" → S={s:.3f}, E={e:.3f}, T={trades}")
+              f"  S={s:.3f}, E={e:.3f}, T={trades}")
         stage3.append({
             "stage":3, "fast":fast, "mid1":mid1, "mid2":mid2, "mid3":mid3,
             "sharpe":s, "expectancy":e, "trades":trades,
             "win_rate": won/trades*100 if trades else 0
         })
 
-    # shortlist PASS3 → final
+    # shortlist PASS3  final
     final_heads = sorted(stage3, key=sort_key)[:PASS3_N]
     print(f"[{symbol}] FINAL top {PASS3_N}: {[(h['fast'],h['mid1'],h['mid2'],h['mid3']) for h in final_heads]}")
 
@@ -156,7 +156,7 @@ def optimize_one(symbol):
     df = pd.DataFrame(stage1 + stage2 + stage3)
     out = f"{symbol}_hma_opt_all.xlsx"
     df.to_excel(out, index=False)
-    print(f"\n✔ Wrote all stages + shortlist flags to {out}")
+    print(f"\n Wrote all stages + shortlist flags to {out}")
 
 if __name__ == "__main__":
     optimize_one(SYMBOL)

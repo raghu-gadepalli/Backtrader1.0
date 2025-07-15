@@ -4,7 +4,7 @@
 import os
 import pandas as pd
 
-# ─── CONFIG ────────────────────────────────────────────────────────────────────
+#  CONFIG 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RESULTS_DIR = os.path.join(_ROOT, "results")
 
@@ -47,7 +47,7 @@ def main():
     print("\nTop 3 HMA Crossovers per Stock saved to results/top3_per_stock.csv")
     print(top3_stock.to_string(index=False))
 
-    # 3) Assign clusters and compute cluster‐average performance
+    # 3) Assign clusters and compute clusteraverage performance
     df_all["cluster"] = df_all["symbol"].map(CLUSTER_MAP)
     cluster_perf = (
         df_all

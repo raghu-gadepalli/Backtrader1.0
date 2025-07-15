@@ -41,7 +41,7 @@ class HmaMultiTrendStrategy(bt.Strategy):
         mid2          = 1040,   # tuned mid HMA #2
         mid3          = 1520,   # tuned slow HMA
         atr_period    = 14,
-        atr_mult      = 0.1,    # gap noise‐gate
+        atr_mult      = 0.1,    # gap noisegate
         adx_period    = 14,     # new ADX lookback
         adx_threshold = 25.0,   # require ADX > this to trade
         printlog      = False,
@@ -69,7 +69,7 @@ class HmaMultiTrendStrategy(bt.Strategy):
         if not self.p.printlog:
             return
         dt = bt.num2date(self.data.datetime[0])
-        print(f"{dt.isoformat()} — {txt}")
+        print(f"{dt.isoformat()}  {txt}")
 
     def notify_order(self, order):
         if order.status in (order.Submitted, order.Accepted):
@@ -103,22 +103,22 @@ class HmaMultiTrendStrategy(bt.Strategy):
         if pos == 0 and state == TrendType.BUY \
            and strength in ("Strong Buy","Medium Buy") \
            and gap > thresh and adx_ok:
-            self.log(f"SIGNAL → BUY ({strength}, gap {gap:.2f} > {thresh:.2f}, ADX {self.adx[0]:.1f})")
+            self.log(f"SIGNAL  BUY ({strength}, gap {gap:.2f} > {thresh:.2f}, ADX {self.adx[0]:.1f})")
             self.order = self.buy()
 
         # ENTRY SHORT
         elif pos == 0 and state == TrendType.SELL \
              and strength in ("Strong Sell","Medium Sell") \
              and gap > thresh and adx_ok:
-            self.log(f"SIGNAL → SELL ({strength}, gap {gap:.2f} > {thresh:.2f}, ADX {self.adx[0]:.1f})")
+            self.log(f"SIGNAL  SELL ({strength}, gap {gap:.2f} > {thresh:.2f}, ADX {self.adx[0]:.1f})")
             self.order = self.sell()
 
         # EXIT LONG
         elif pos > 0 and state == TrendType.SELL:
-            self.log(f"SIGNAL → EXIT LONG ({strength})")
+            self.log(f"SIGNAL  EXIT LONG ({strength})")
             self.order = self.close()
 
         # EXIT SHORT
         elif pos < 0 and state == TrendType.BUY:
-            self.log(f"SIGNAL → EXIT SHORT ({strength})")
+            self.log(f"SIGNAL  EXIT SHORT ({strength})")
             self.order = self.close()

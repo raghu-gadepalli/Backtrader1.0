@@ -9,7 +9,7 @@ import matplotlib; matplotlib.use("Agg", force=True)
 
 import backtrader as bt
 
-# ─── project root ───────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -17,7 +17,7 @@ if _ROOT not in sys.path:
 from data.load_candles import load_candles
 from strategies.macd      import MacdStrategy
 
-# ─── user configuration ─────────────────────────────────────────────────────────
+#  user configuration 
 SYMBOLS    = ["AXISBANK","HDFCBANK","ICICIBANK","INFY","KOTAKBANK",
               "SBIN","SUNPHARMA","TECHM"]
 MACD_PARAMS = dict(macd1=120, macd2=240, signal=60, printlog=False)
@@ -52,7 +52,7 @@ def run_period(symbol, start, end):
     tot     = tr.get("total",{}).get("closed", 0)
     winrate = (won/tot*100) if tot else 0.0
 
-    print(f"\n--- {symbol} | {start} → {end} @ MACD"
+    print(f"\n--- {symbol} | {start}  {end} @ MACD"
           f"({MACD_PARAMS['macd1']},"
           f"{MACD_PARAMS['macd2']},"
           f"{MACD_PARAMS['signal']}) ---")

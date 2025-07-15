@@ -77,7 +77,7 @@ def run(symbol: str, start: str, end: str,
     plt.plot(dates,     hma_f,     label=f"HMA_FAST({fast})", linewidth=1)
     plt.plot(dates,     hma_m1,    label=f"HMA_MID1({mid1})",linewidth=1)
     plt.xlim(datetime.fromisoformat(start), datetime.fromisoformat(end))
-    plt.title(f"{symbol}  fast={fast}, mid1={mid1}, ATR×{atr_mult}")
+    plt.title(f"{symbol}  fast={fast}, mid1={mid1}, ATR{atr_mult}")
     plt.xlabel("Time"); plt.ylabel("Price"); plt.legend(); plt.tight_layout()
 
     out = os.path.join(RESULTS_DIR,

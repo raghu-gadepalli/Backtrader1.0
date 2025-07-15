@@ -8,7 +8,7 @@ import matplotlib; matplotlib.use("Agg", force=True)
 import backtrader as bt
 import pandas     as pd
 
-# ─── Project setup ─────────────────────────────────────────────────────────────
+#  Project setup 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -31,7 +31,7 @@ def optimize_focus():
     records = []
 
     total = len(fast_vals) * len(ratios)
-    print(f"🔍 Running focused sweep: {total} combos (fast × ratio)…\n")
+    print(f" Running focused sweep: {total} combos (fast  ratio)\n")
 
     for fast in fast_vals:
         for ratio in ratios:
@@ -73,14 +73,14 @@ def optimize_focus():
                 "win%":   round(winpct, 1),
             })
 
-            print(f"✓ f={fast:<3} r={ratio:<4} s={slow:<4} → Sharpe {sharpe:.4f}, Win% {winpct:.1f}%")
+            print(f" f={fast:<3} r={ratio:<4} s={slow:<4}  Sharpe {sharpe:.4f}, Win% {winpct:.1f}%")
 
     df_res = pd.DataFrame(records)
     df_res = df_res.sort_values(["sharpe","ratio","fast"], ascending=[False,True,True])
     out_csv = os.path.join(RESULTS_DIR, "hma_ratio_focus.csv")
     df_res.to_csv(out_csv, index=False)
 
-    print("\n📊 Top 10 focused combos by Sharpe:\n")
+    print("\n Top 10 focused combos by Sharpe:\n")
     print(df_res.head(10).to_string(index=False))
     print(f"\nFull results saved to {out_csv}")
 

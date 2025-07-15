@@ -4,14 +4,14 @@
 import os, sys
 from datetime import datetime
 
-# ─── FORCE HEADLESS MPL BACKEND ───────────────────────────────────────────────
+#  FORCE HEADLESS MPL BACKEND 
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib; matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 
 import backtrader as bt
 
-# ─── PROJECT ROOT ─────────────────────────────────────────────────────────────
+#  PROJECT ROOT 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -19,7 +19,7 @@ if _ROOT not in sys.path:
 from data.load_candles                import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 
-# ─── OUTPUT DIRECTORY ─────────────────────────────────────────────────────────
+#  OUTPUT DIRECTORY 
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -63,7 +63,7 @@ def run_strength(symbol: str, start: str, end: str,
     total  = tr.get("total", {}).get("closed", 0)
     winr   = (won/total*100) if total else 0.0
 
-    print(f"\n=== {symbol}  fast={fast}, mid1={mid1}  mid2={mid2}, mid3={mid3}  ATR×{atr_mult} ===")
+    print(f"\n=== {symbol}  fast={fast}, mid1={mid1}  mid2={mid2}, mid3={mid3}  ATR{atr_mult} ===")
     print(f"Sharpe Ratio : {sharpe:.2f}" if sharpe is not None else "Sharpe Ratio : N/A")
     print(f"Max Drawdown : {dd:.2f}%")
     print(f"Total Trades : {total}")
@@ -81,7 +81,7 @@ def run_strength(symbol: str, start: str, end: str,
     plt.plot(dates,     hma_f,     label=f"HMA_FAST({fast})", linewidth=1)
     plt.plot(dates,     hma_m1,    label=f"HMA_MID1({mid1})",linewidth=1)
     plt.xlim(datetime.fromisoformat(start), datetime.fromisoformat(end))
-    plt.title(f"{symbol}  fast={fast}, mid1={mid1}, ATR×{atr_mult}")
+    plt.title(f"{symbol}  fast={fast}, mid1={mid1}, ATR{atr_mult}")
     plt.xlabel("Time"); plt.ylabel("Price"); plt.legend(); plt.tight_layout()
 
     outfile = os.path.join(

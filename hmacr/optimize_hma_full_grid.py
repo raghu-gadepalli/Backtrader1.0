@@ -4,7 +4,7 @@
 import os
 import sys
 
-# ─── HEADLESS PLOTTING SETUP ─────────────────────────────────────────────────────
+#  HEADLESS PLOTTING SETUP 
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib
 matplotlib.use("Agg", force=True)
@@ -12,7 +12,7 @@ matplotlib.use("Agg", force=True)
 import backtrader as bt
 import pandas as pd
 
-# ─── PROJECT PATH ───────────────────────────────────────────────────────────────
+#  PROJECT PATH 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -20,18 +20,18 @@ if _ROOT not in sys.path:
 from data.load_candles           import load_candles
 from strategies.HmaTrendStrategy import HmaTrendStrategy
 
-# ─── SETTINGS ───────────────────────────────────────────────────────────────────
+#  SETTINGS 
 SYMBOL     = "INFY"
 START      = "2025-04-01"
 END        = "2025-07-06"
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-# Define your grid of fast & slow periods (keeping ~3.3× ratio)
+# Define your grid of fast & slow periods (keeping ~3.3 ratio)
 fast_vals = [200, 400, 600, 800, 1000]
 slow_vals = [int(f * 3.3)       for f in fast_vals]
 
-# ─── RUN OPTIMIZATION ───────────────────────────────────────────────────────────
+#  RUN OPTIMIZATION 
 def optimize():
     cerebro = bt.Cerebro(maxcpus=4)
     cerebro.optstrategy(

@@ -3,14 +3,14 @@ import os
 import sys
 from datetime import datetime
 
-# ─── headless plotting ─────────────────────────────────────────────────────────
+#  headless plotting 
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib; matplotlib.use("Agg", force=True)
 
 import pandas as pd
 import backtrader as bt
 
-# ─── project root ───────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -18,18 +18,18 @@ if _ROOT not in sys.path:
 from data.load_candles          import load_candles
 from strategies.hma_crossover   import HmaCrossoverStrategy  # :contentReference[oaicite:0]{index=0}
 
-# ─── USER CONFIGURATION ────────────────────────────────────────────────────────
+#  USER CONFIGURATION 
 SYMBOL        = "INFY"
 FAST, SLOW    = 200, 300      # HMA periods
-ATR_PERIOD    = 14            # ATR length for noise‐filtering
-ATR_MULT      = 1.0           # require gap > ATR×ATR_MULT
+ATR_PERIOD    = 14            # ATR length for noisefiltering
+ATR_MULT      = 1.0           # require gap > ATRATR_MULT
 
 WARMUP_START  = "2025-04-01"
 TRAIN_START   = "2025-05-01"
 TRAIN_END     = "2025-05-31"
 TEST_START    = "2025-06-01"
 TEST_END      = "2025-06-30"
-# ────────────────────────────────────────────────────────────────────────────────
+# 
 
 def run_period(symbol, start, end, fast, slow, atr_period, atr_mult):
     # 1) load warmup + full window
@@ -50,7 +50,7 @@ def run_period(symbol, start, end, fast, slow, atr_period, atr_mult):
                                compression=1)
     cerebro.adddata(data, name=symbol)
 
-    # 4) wire in your HMA‐crossover strategy
+    # 4) wire in your HMAcrossover strategy
     cerebro.addstrategy(HmaCrossoverStrategy,
                         fast       = fast,
                         slow       = slow,
@@ -69,7 +69,7 @@ def run_period(symbol, start, end, fast, slow, atr_period, atr_mult):
     wr    = (won/tot*100) if tot else 0.0
 
     # 6) print summary
-    print(f"\n--- {symbol} | {start} → {end} @ HMA‑XOVER({fast},{slow},ATR{atr_period}×{atr_mult}) ---")
+    print(f"\n--- {symbol} | {start}  {end} @ HMAXOVER({fast},{slow},ATR{atr_period}{atr_mult}) ---")
     print(f"Sharpe Ratio : {sr:.2f}")
     print(f"Max Drawdown : {dd:.2f}%")
     print(f"Total Trades : {tot}")

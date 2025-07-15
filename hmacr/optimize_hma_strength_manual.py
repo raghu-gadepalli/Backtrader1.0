@@ -7,7 +7,7 @@ from datetime import datetime
 
 import backtrader as bt
 
-# ─── PROJECT ROOT ON PATH ──────────────────────────────────────────────────────
+#  PROJECT ROOT ON PATH 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -16,7 +16,7 @@ from data.load_candles                   import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 
 def optimize_manual(symbol, start, end):
-    # 1) parameter grid (shrink these if it’s still too slow)
+    # 1) parameter grid (shrink these if its still too slow)
     fasts    = [200, 400, 600, 800]
     mids1    = [400, 800, 1200]
     mids2    = [800, 1400, 2000]
@@ -38,7 +38,7 @@ def optimize_manual(symbol, start, end):
 
         # 3) run each combo one by one
         for idx, (f, m1, m2, m3, am) in enumerate(combos, 1):
-            print(f"[{idx}/{total}] fast={f} mid1={m1} mid2={m2} mid3={m3} atr×{am}")
+            print(f"[{idx}/{total}] fast={f} mid1={m1} mid2={m2} mid3={m3} atr{am}")
             cerebro = bt.Cerebro(stdstats=False)
             # analyzers
             cerebro.addanalyzer(bt.analyzers.SharpeRatio,  _name="sharpe",

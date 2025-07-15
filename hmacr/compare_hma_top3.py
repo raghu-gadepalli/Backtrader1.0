@@ -4,7 +4,7 @@
 import os
 import sys
 
-# ─── PROJECT ROOT ON PATH ──────────────────────────────────────────────────────
+#  PROJECT ROOT ON PATH 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -14,13 +14,13 @@ import backtrader as bt
 from data.load_candles import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 
-# ─── USER CONFIG ─────────────────────────────────────────────────────────────
+#  USER CONFIG 
 SYMBOL     = "INFY"   # change to "ICICIBANK" or "RELIANCE" as needed
 WARMUP     = "2025-04-01"
 END        = "2025-07-06"
 ATR_MULT   = 0.0
 
-# ─── YOUR TOP-3 CANDIDATES FOR THIS SYMBOL ───────────────────────────────────
+#  YOUR TOP-3 CANDIDATES FOR THIS SYMBOL 
 # pull these from your .csvs: first 3 you want to test
 CANDIDATES = [
     # 60-grid #1
@@ -31,7 +31,7 @@ CANDIDATES = [
     {"label":"80-grid-1", "fast":700, "mid1":560,  "mid2":1400, "mid3":2800, "atr_mult":ATR_MULT},
 ]
 
-# ─── BACKTEST FUNCTION ────────────────────────────────────────────────────────
+#  BACKTEST FUNCTION 
 def run_bt(symbol, cfg):
     cerebro = bt.Cerebro(stdstats=False)
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
@@ -51,7 +51,7 @@ def run_bt(symbol, cfg):
 
     # Sharpe
     s = strat.analyzers.sharpe.get_analysis().get("sharperatio") or float("-inf")
-    # Win‐rate
+    # Winrate
     tr = strat.analyzers.trades.get_analysis()
     won  = tr.get("won",{}).get("total",0)
     lost = tr.get("lost",{}).get("total",0)
@@ -60,7 +60,7 @@ def run_bt(symbol, cfg):
 
     return s, wr, total
 
-# ─── MAIN ─────────────────────────────────────────────────────────────────────
+#  MAIN 
 if __name__ == "__main__":
     print(f"\nResults for {SYMBOL}\n" + "-"*40)
     print(f"{'Label':<12} {'Sharpe':>7}   {'Win%':>6}   {'Trades':>6}")

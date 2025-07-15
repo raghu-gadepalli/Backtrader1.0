@@ -4,7 +4,7 @@
 import os, sys
 from datetime import datetime
 
-# ─── PROJECT ROOT ON PATH ──────────────────────────────────────────────────────
+#  PROJECT ROOT ON PATH 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -15,7 +15,7 @@ from data.load_candles import load_candles
 from strategies.HmaStateStrengthStrategy import HmaStateStrengthStrategy
 from config.enums import TrendType
 
-# ─── PROJECT ROOT ON PATH ──────────────────────────────────────────────────────
+#  PROJECT ROOT ON PATH 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -75,10 +75,10 @@ if __name__ == "__main__":
             mid1 = fast + off
             res = run_bt(fast, mid1)
             RESULTS.append(res)
-            print(f"Tested fast={fast}, mid1={mid1} → Sharpe={res['sharpe']:.3f}, Trades={res['trades']}, Win%={res['winrate']:.1f}")
+            print(f"Tested fast={fast}, mid1={mid1}  Sharpe={res['sharpe']:.3f}, Trades={res['trades']}, Win%={res['winrate']:.1f}")
 
     # sort & show top 5 by Sharpe
     top5 = sorted(RESULTS, key=lambda x: x["sharpe"], reverse=True)[:5]
     print("\n=== Top 5 RELIANCE fast/mid1 pairs ===")
     for r in top5:
-        print(f"fast={r['fast']:>3}, mid1={r['mid1']:>4} — Sharpe {r['sharpe']:.3f}, DD {r['dd']:.2f}%, {r['winrate']:.1f}% win")
+        print(f"fast={r['fast']:>3}, mid1={r['mid1']:>4}  Sharpe {r['sharpe']:.3f}, DD {r['dd']:.2f}%, {r['winrate']:.1f}% win")

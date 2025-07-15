@@ -11,7 +11,7 @@ import matplotlib; matplotlib.use("Agg", force=True)
 
 import backtrader as bt
 
-# ─── project root ───────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -19,7 +19,7 @@ if _ROOT not in sys.path:
 from data.load_candles        import load_candles
 from strategies.hma_multitrend import HmaMultiTrendStrategy  # :contentReference[oaicite:0]{index=0}
 
-# ─── per‐symbol multi‑HMA parameters ────────────────────────────────────────────
+#  persymbol multiHMA parameters 
 HMA_MULTI_PARAMS = {
     "AXISBANK":  dict(fast=600, mid1=760, mid2=1040, mid3=1520,
                       atr_period=14, atr_mult=0.1, adx_period=14,
@@ -93,7 +93,7 @@ def run_period(symbol, start, end, params):
     wr    = (won / tot * 100) if tot else 0.0
 
     p = params
-    print(f"\n--- {symbol} | {start} → {end} @ HMA_MULTI"
+    print(f"\n--- {symbol} | {start}  {end} @ HMA_MULTI"
           f"({p['fast']},{p['mid1']},{p['mid2']},{p['mid3']},"
           f"atr{p['atr_period']}/{p['atr_mult']},"
           f"adx{p['adx_period']}/{p['adx_threshold']}) ---")
@@ -108,5 +108,5 @@ if __name__ == "__main__":
         run_period(symbol, TRAIN_START, TRAIN_END, params)
         # June
         run_period(symbol, TEST_START,  TEST_END,  params)
-        # July 1–14
+        # July 114
         run_period(symbol, JULY_START, JULY_END,  params)

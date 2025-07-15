@@ -10,7 +10,7 @@ from openpyxl import Workbook, load_workbook
 
 from strategies.hma_crossover import HmaCrossoverStrategy
 
-# ─── PROJECT ROOT ON PATH ──────────────────────────────────────────────────────
+#  PROJECT ROOT ON PATH 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -18,7 +18,7 @@ if _ROOT not in sys.path:
 from data.load_candles import load_candles
 from strategies.hma_crossover import HmaCrossoverStrategy
 
-# ─── USER CONFIGURATION ────────────────────────────────────────────────────────
+#  USER CONFIGURATION 
 STOCKS      = ["AXISBANK","HDFCBANK"]
 START       = "2025-04-01"
 END         = "2025-07-06"
@@ -115,7 +115,7 @@ def optimize_all():
                 append_to_xlsx(OUTPUT_XLSX, row)
                 done.add(key)
 
-                print(f"{symbol:8s} f={fast:<4d} s={slow:<4d} → Sharpe {sharpe:.4f}, Win% {row['win%']:.1f}%")
+                print(f"{symbol:8s} f={fast:<4d} s={slow:<4d}  Sharpe {sharpe:.4f}, Win% {row['win%']:.1f}%")
 
 if __name__ == "__main__":
     optimize_all()

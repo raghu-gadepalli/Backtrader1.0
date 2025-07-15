@@ -18,7 +18,7 @@ class Candle(Base):
 
     id          = Column(Integer, primary_key=True, autoincrement=True)
     symbol      = Column(String(50), nullable=False)
-    frequency   = Column(Integer, nullable=False)       # minutes (1, 3, 5, …)
+    frequency   = Column(Integer, nullable=False)       # minutes (1, 3, 5, )
     candle_time = Column(DateTime, nullable=False)
     open        = Column(DECIMAL(13, 2), nullable=False, default=Decimal("0.00"))
     high        = Column(DECIMAL(13, 2), nullable=False, default=Decimal("0.00"))

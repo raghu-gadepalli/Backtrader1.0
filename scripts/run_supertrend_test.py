@@ -9,15 +9,15 @@ import matplotlib; matplotlib.use("Agg", force=True)
 
 import backtrader as bt
 
-# ─── project root ───────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from data.load_candles import load_candles
-from strategies.supertrend   import ST  # your SuperTrend‐only strategy
+from strategies.supertrend   import ST  # your SuperTrendonly strategy
 
-# ─── your finalized per‐symbol SuperTrend settings ────────────────────────────
+#  your finalized persymbol SuperTrend settings 
 ST_PARAMS = {
     "AXISBANK":   dict(period=60,  mult=2.0),
     "HDFCBANK":   dict(period=120, mult=1.8),
@@ -64,7 +64,7 @@ def run_period(symbol, start, end):
     tot     = tr.get("total",{}).get("closed", 0)
     winrate = (won/tot*100) if tot else 0.0
 
-    print(f"\n--- {symbol} | {start} → {end} @ ST({p['period']},{p['mult']}) ---")
+    print(f"\n--- {symbol} | {start}  {end} @ ST({p['period']},{p['mult']}) ---")
     print(f"Sharpe Ratio : {sharpe:.2f}")
     print(f"Max Drawdown : {dd:.2f}%")
     print(f"Total Trades : {tot}")

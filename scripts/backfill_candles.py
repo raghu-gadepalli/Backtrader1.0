@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from config.db           import get_session
 from models.trade_models import Candle
 
-# ─── CONFIGURATION ─────────────────────────────────────────────────────────────
+#  CONFIGURATION 
 
 API_KEY      = "bv185n0541aaoish"
 ACCESS_TOKEN = "CfDISGqbsQG7qCtBoY5ifoJY55l1cBg7"
@@ -60,7 +60,7 @@ INTERVAL_MAP = {
 }
 
 
-# ─── BACKFILL LOGIC ────────────────────────────────────────────────────────────
+#  BACKFILL LOGIC 
 
 def backfill_symbol(kite, session, symbol, token, freq, start, end):
     interval, freq_num = INTERVAL_MAP[freq]
@@ -106,11 +106,11 @@ def main():
 
     with get_session() as session:
         for symbol, token in SYMBOLS:
-            print(f"\n📊 Backfilling {symbol} (token={token})")
+            print(f"\n Backfilling {symbol} (token={token})")
             for freq in FREQUENCIES:
                 backfill_symbol(kite, session, symbol, token, freq, start_dt, end_dt)
 
-    print("\n✅ Backfill complete.")
+    print("\n Backfill complete.")
 
 
 if __name__ == "__main__":
