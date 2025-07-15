@@ -3,52 +3,25 @@
 
 import os
 import sys
-import backtrader as bt
+import csv
 import pandas as pd
 
 # headless Matplotlib
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib; matplotlib.use("Agg", force=True)
 
+import backtrader as bt
+
 # ─── project root ───────────────────────────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from data.load_candles import load_candles
+from data.load_candles     import load_candles
+from strategies.supertrend import SuperTrend, ST
 
-# ─── SuperTrend indicator ──────────────────────────────────────────────────────
-class SuperTrend(bt.Indicator):
-    lines = ("st",)
-    params = dict(period=120, multiplier=3.0)
-
-    def __init__(self):
-        atr   = bt.ind.ATR(self.data, period=self.p.period)
-        hl2   = (self.data.high + self.data.low) / 2
-        upper = hl2 + self.p.multiplier * atr
-        lower = hl2 - self.p.multiplier * atr
-
-        self.l.st = bt.If(
-            self.data.close > self.l.st(-1),
-            bt.Min(upper, self.l.st(-1)),
-            bt.Max(lower, self.l.st(-1)),
-        )
-
-# ─── SuperTrend‐only strategy ──────────────────────────────────────────────────
-class ST(bt.Strategy):
-    params = dict(st_period=120, st_mult=3.0)
-
-    def __init__(self):
-        self.st = SuperTrend(self.data,
-                             period=self.p.st_period,
-                             multiplier=self.p.st_mult)
-
-    def next(self):
-        price = self.data.close[0]
-        if not self.position and price > self.st[0]:
-            self.buy()
-        elif self.position and price < self.st[0]:
-            self.close()
+# ─── output CSV ────────────────────────────────────────────────────────────────
+OUTPUT_CSV = "supertrend_sweep_results.csv"
 
 # ─── symbols & parameter grid ─────────────────────────────────────────────────
 SYMBOLS = [
@@ -56,7 +29,6 @@ SYMBOLS = [
     "KOTAKBANK", "MARUTI", "RELIANCE", "SBIN",
     "SUNPHARMA", "TECHM"
 ]
-
 PERIODS = [30, 40, 60, 80, 120, 160, 180, 240]
 MULTS   = [1.8, 2.0, 2.2, 2.5, 3.0]
 
@@ -82,9 +54,13 @@ WINDOWS = [
     },
 ]
 
-def run_sweep(symbol, warm, start, end, period, mult):
-    # load warm‑up through end
-    df = load_candles(symbol, warm, end)
+def run_sweep(symbol, window, period, mult):
+    """
+    Runs one backtest for given symbol, window, st-period & multiplier.
+    Returns a list of results to write to CSV.
+    """
+    # load warm‑up + test slice
+    df = load_candles(symbol, window["warm"], window["end"])
     df.index = pd.to_datetime(df.index)
 
     cerebro = bt.Cerebro()
@@ -109,29 +85,61 @@ def run_sweep(symbol, warm, start, end, period, mult):
     dd    = strat.analyzers.drawdown.get_analysis().max.drawdown
     tr    = strat.analyzers.trades.get_analysis()
     won   = tr.get("won",  {}).get("total", 0)
-    lost  = tr.get("lost", {}).get("total",   0)
-    tot   = tr.get("total",{}).get("closed",  0)
+    lost  = tr.get("lost", {}).get("total", 0)
+    tot   = tr.get("total",{}).get("closed", 0)
     wr    = (won / tot * 100) if tot else 0.0
 
-    print(f"\n--- {symbol} | {WINDOWS_LABEL} @ ST({period},{mult}) "
-          f"[warm‑up {warm} ▶ test {start}→{end}] ---")
+    # Console output
+    print(f"\n--- {symbol} | {window['label']} @ ST({period},{mult}) "
+          f"[warm‑up {window['warm']} ▶ {window['start']}→{window['end']}] ---")
     print(f"Sharpe Ratio : {sr:.2f}")
     print(f"Max Drawdown : {dd:.2f}%")
     print(f"Total Trades : {tot}")
     print(f"Win Rate     : {wr:.1f}% ({won}W/{lost}L)")
 
+    # Row for CSV
+    return [
+        symbol,
+        window["label"],
+        window["warm"],
+        window["start"],
+        window["end"],
+        period,
+        mult,
+        f"{sr:.4f}",
+        f"{dd:.2f}",
+        tot,
+        f"{wr:.1f}",
+        won,
+        lost
+    ]
+
 if __name__ == "__main__":
-    for symbol in SYMBOLS:
-        for period in PERIODS:
-            for mult in MULTS:
-                for w in WINDOWS:
-                    # make WINDOWS_LABEL available inside run_sweep
-                    WINDOWS_LABEL = w["label"]
-                    run_sweep(
-                        symbol,
-                        warm   = w["warm"],
-                        start  = w["start"],
-                        end    = w["end"],
-                        period = period,
-                        mult   = mult
-                    )
+    # Open CSV and write header
+    with open(OUTPUT_CSV, "w", newline="") as fout:
+        writer = csv.writer(fout)
+        writer.writerow([
+            "symbol",
+            "window",
+            "warmup",
+            "start",
+            "end",
+            "period",
+            "mult",
+            "sharpe",
+            "drawdown",
+            "total_trades",
+            "win_rate",
+            "won",
+            "lost"
+        ])
+
+        # Sweep over everything
+        for symbol in SYMBOLS:
+            for period in PERIODS:
+                for mult in MULTS:
+                    for win in WINDOWS:
+                        row = run_sweep(symbol, win, period, mult)
+                        writer.writerow(row)
+
+    print(f"\n➡️  Sweep complete; results saved to {OUTPUT_CSV}")
