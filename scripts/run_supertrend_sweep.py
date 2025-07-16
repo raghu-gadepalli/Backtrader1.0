@@ -53,12 +53,13 @@ class ST(bt.Strategy):
             self.close()
 
 # ─── symbols & parameter grid ─────────────────────────────────────────────────
-SYMBOLS = ["HDFCBANK"]
+SYMBOLS = ["AXISBANK", "ICICIBANK", "INFY", "KOTAKBANK", "SBIN", "SUNPHARMA", "TECHM"]
 PERIODS = [20, 30, 40, 60, 80, 120, 160, 180, 240]
-MULTS   = [1.8, 2.0, 2.2, 2.5, 3.0]
+MULTS   = [1,4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0]
 
 # ─── walk‑forward windows for tuning ───────────────────────────────────────────
 WINDOWS = [
+    { "label": "Jan-Jun", "warm": "2024-12-01", "start": "2025-01-01", "end": "2025-06-30" },
     { "label": "Jan-Feb", "warm": "2025-01-01", "start": "2025-02-01", "end": "2025-02-28" },
     { "label": "Feb-Mar", "warm": "2025-02-01", "start": "2025-03-01", "end": "2025-03-31" },
     { "label": "Mar-Apr", "warm": "2025-03-01", "start": "2025-04-01", "end": "2025-04-30" },

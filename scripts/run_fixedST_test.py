@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# scripts/run_supertrend_test.py
+# scripts/run_fixedST_test.py
 
 import os
 import sys
@@ -17,23 +17,23 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from data.load_candles import load_candles
-from strategies.supertrend import ST  # your SuperTrend strategy
+from strategies.adaptive_supertrend import STFixedWidth
 
-# finalized SuperTrend settings per symbol
+# Fixed‑Width SuperTrend parameters per symbol
 ST_PARAMS = {
-    # "HDFCBANK": dict(period=240, mult=2.0),
-    "KOTAKBANK": dict(period=240, mult=2.5),
+    "HDFCBANK": dict(
+        st_period    = 240,      # period for ATR calculation
+        target_width = 2.4221,   # Jan–Jun ATR×mult as computed
+    ),
 }
 
 SYMBOLS = list(ST_PARAMS.keys())
 
-# warm‑up start (for indicator priming)
-WARMUP = "2025-03-01"
+# warm‑up for indicator priming
+WARMUP = "2025-04-01"
 
 # explicit evaluation windows with clear labels
 PERIODS = {
-    "Mar-2025":   ("2025-03-01", "2025-03-31"),
-    "Apr-2025":   ("2025-04-01", "2025-04-30"),
     "May-2025":   ("2025-05-01", "2025-05-31"),
     "June-2025":  ("2025-06-01", "2025-06-30"),
     "July1-2025": ("2025-07-01", "2025-07-14"),
@@ -44,7 +44,8 @@ results = []
 
 def run_period(symbol, label, start, end):
     params = ST_PARAMS[symbol]
-    # load full data (warm‑up through end of this window)
+
+    # Load warm‑up through end
     df = load_candles(symbol, WARMUP, end)
     df.index = pd.to_datetime(df.index)
 
@@ -55,7 +56,7 @@ def run_period(symbol, label, start, end):
     cerebro.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
 
-    # slice feed exactly to [start, end] for analyzers
+    # Feed only the [start,end] slice to analyzers
     data = bt.feeds.PandasData(
         dataname    = df,
         fromdate    = pd.to_datetime(start),
@@ -65,10 +66,11 @@ def run_period(symbol, label, start, end):
     )
     cerebro.adddata(data, name=symbol)
 
+    # Add the fixed‑width SuperTrend strategy
     cerebro.addstrategy(
-        ST,
-        st_period = params["period"],
-        st_mult   = params["mult"]
+        STFixedWidth,
+        st_period    = params["st_period"],
+        target_width = params["target_width"],
     )
 
     strat = cerebro.run()[0]
@@ -78,22 +80,23 @@ def run_period(symbol, label, start, end):
     won     = tr.get("won",  {}).get("total", 0)
     lost    = tr.get("lost", {}).get("total", 0)
     tot     = tr.get("total",{}).get("closed", 0)
-    winrate = (won / tot * 100) if tot else 0.0
+    winrate = (won/tot*100) if tot else 0.0
 
-    print(f"\n--- {symbol} | {label} @ ST({params['period']},{params['mult']}) ---")
+    print(f"\n--- {symbol} | {label} @ STFixedWidth("
+          f"st_period={params['st_period']}, "
+          f"target_width={params['target_width']}) ---")
     print(f"Sharpe Ratio : {sharpe:.2f}")
     print(f"Max Drawdown : {dd:.2f}%")
     print(f"Total Trades : {tot}")
     print(f"Win Rate     : {winrate:.1f}% ({won}W/{lost}L)")
 
-    # store for CSV
     results.append({
         "symbol":       symbol,
         "period_label": label,
         "start":        start,
         "end":          end,
-        "st_period":    params["period"],
-        "st_mult":      params["mult"],
+        "st_period":    params["st_period"],
+        "target_width": params["target_width"],
         "sharpe":       sharpe,
         "drawdown":     dd,
         "trades":       tot,
@@ -105,6 +108,5 @@ if __name__ == "__main__":
         for label, (start, end) in PERIODS.items():
             run_period(sym, label, start, end)
 
-    # write test results to CSV
-    pd.DataFrame(results).to_csv("supertrend_test_results.csv", index=False)
-    print("\nWrote supertrend_test_results.csv")
+    pd.DataFrame(results).to_csv("fixedST_test_results.csv", index=False)
+    print("\nWrote fixedST_test_results.csv")

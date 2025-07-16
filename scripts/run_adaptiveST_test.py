@@ -19,12 +19,15 @@ if _ROOT not in sys.path:
 from data.load_candles import load_candles
 from strategies.adaptive_supertrend import STAdaptive
 
-# Adaptive SuperTrend parameters per symbol
+# Adaptive SuperTrend parameters per symbol (from your regression fit)
 ST_PARAMS = {
     "HDFCBANK": dict(
         st_period    = 240,
-        base_mult    = 1.8,
         vol_lookback = 240,
+        a_coef       = -1.4218,
+        b_coef       =  3.9862,
+        min_mult     = 0.5,
+        max_mult     = 3.0,
     ),
 }
 
@@ -45,9 +48,12 @@ results = []
 
 def run_period(symbol, label, start, end):
     params = ST_PARAMS[symbol]
+
+    # Load warm‑up through end
     df = load_candles(symbol, WARMUP, end)
     df.index = pd.to_datetime(df.index)
 
+    # Setup Cerebro and analyzers
     cerebro = bt.Cerebro()
     cerebro.addanalyzer(bt.analyzers.SharpeRatio,   _name="sharpe",
                         timeframe=bt.TimeFrame.Minutes,
@@ -55,6 +61,7 @@ def run_period(symbol, label, start, end):
     cerebro.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
 
+    # Feed only the [start,end] slice to analyzers
     data = bt.feeds.PandasData(
         dataname    = df,
         fromdate    = pd.to_datetime(start),
@@ -64,12 +71,15 @@ def run_period(symbol, label, start, end):
     )
     cerebro.adddata(data, name=symbol)
 
-    # Pass the correct param names here:
+    # Add the adaptive strategy with correct parameter names
     cerebro.addstrategy(
         STAdaptive,
         st_period    = params["st_period"],
-        base_mult    = params["base_mult"],
         vol_lookback = params["vol_lookback"],
+        a_coef       = params["a_coef"],
+        b_coef       = params["b_coef"],
+        min_mult     = params["min_mult"],
+        max_mult     = params["max_mult"],
     )
 
     strat = cerebro.run()[0]
@@ -79,11 +89,11 @@ def run_period(symbol, label, start, end):
     won     = tr.get("won",  {}).get("total", 0)
     lost    = tr.get("lost", {}).get("total", 0)
     tot     = tr.get("total",{}).get("closed", 0)
-    winrate = (won / tot * 100) if tot else 0.0
+    winrate = (won/tot*100) if tot else 0.0
 
     print(f"\n--- {symbol} | {label} @ AdaptiveST("
-          f"st_period={params['st_period']},"
-          f"base_mult={params['base_mult']},"
+          f"st_period={params['st_period']}, "
+          f"a_coef={params['a_coef']}, b_coef={params['b_coef']}, "
           f"vol_lookback={params['vol_lookback']}) ---")
     print(f"Sharpe Ratio : {sharpe:.2f}")
     print(f"Max Drawdown : {dd:.2f}%")
@@ -96,7 +106,8 @@ def run_period(symbol, label, start, end):
         "start":        start,
         "end":          end,
         "st_period":    params["st_period"],
-        "base_mult":    params["base_mult"],
+        "a_coef":       params["a_coef"],
+        "b_coef":       params["b_coef"],
         "vol_lookback": params["vol_lookback"],
         "sharpe":       sharpe,
         "drawdown":     dd,
