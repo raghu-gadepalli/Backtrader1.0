@@ -1,121 +1,165 @@
 #!/usr/bin/env python3
-# scripts/optimize_hma_all_stocks.py
+# scripts/run_hmamulti_sweep.py
 
 import os
 import sys
+import csv
 
-import backtrader as bt
-import pandas as pd
-from openpyxl import Workbook, load_workbook
-
-from strategies.hma_crossover import HmaCrossoverStrategy
-
-#  PROJECT ROOT ON PATH 
+# ─── project root ───────────────────────────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+import backtrader as bt
 from data.load_candles import load_candles
-from strategies.hma_crossover import HmaCrossoverStrategy
+from strategies.hma_multitrend import HmaMultiTrendStrategy
 
-#  USER CONFIGURATION 
-STOCKS      = ["AXISBANK","HDFCBANK"]
-START       = "2025-04-01"
-END         = "2025-07-06"
-RESULTS_DIR = os.path.join(_ROOT, "results")
-os.makedirs(RESULTS_DIR, exist_ok=True)
+# ─── user parameters ────────────────────────────────────────────────────────────
 
-# HMA grid: multiples of 40
-FAST_VALS = list(range(40, 1001, 40))    # 40, 80, 120, ..., 1000
-SLOW_VALS = list(range(40, 3001, 40))    # 40, 80, 120, ..., 3000
+# list of symbols to test
+SYMBOLS = ["ICICIBANK", "INFY", "RELIANCE"]
 
-# Output file
-OUTPUT_XLSX = os.path.join(RESULTS_DIR, "hma_all_stocks.xlsx")
-SHEET_NAME  = "Results"
+# common HMA parameter grids
+FAST_RANGE  = range(30, 181, 30)
+MID1_RANGE  = range(120, 721, 120)
+MID2_LIST   = [120, 180, 240, 360, 840]
+MID3_LIST   = [240, 360, 480, 720]
 
-def append_to_xlsx(path, row, sheet=SHEET_NAME):
-    """Append a row to an Excel sheet, creating file/header if needed."""
-    if not os.path.exists(path):
-        wb = Workbook()
-        ws = wb.active
-        ws.title = sheet
-        ws.append(list(row.keys()))
-        ws.append(list(row.values()))
-        wb.save(path)
-    else:
-        wb = load_workbook(path)
-        ws = wb[sheet] if sheet in wb.sheetnames else wb.create_sheet(sheet)
-        ws.append(list(row.values()))
-        wb.save(path)
+ATR_MULT = 0.0
+METRIC   = "sharpe"   # or "expectancy"
+PASS1_N  = 3
+PASS2_N  = 3
+PASS3_N  = 3
+DISTINCT1 = True
+DISTINCT2 = True
 
-def load_done_set(path, sheet=SHEET_NAME):
-    """Read existing results to skip already-done combos."""
-    if not os.path.exists(path):
-        return set()
-    df = pd.read_excel(path, sheet_name=sheet)
-    return set(zip(df['symbol'], df['fast'], df['slow']))
+# ─── walk‑forward windows ───────────────────────────────────────────────────────
+WINDOWS = [
+    { "label": "Jan-Jun", "warm": "2024-12-01", "start": "2025-01-01", "end": "2025-06-30" },
+    { "label": "Jan-Feb", "warm": "2025-01-01", "start": "2025-02-01", "end": "2025-02-28" },
+    { "label": "Feb-Mar", "warm": "2025-02-01", "start": "2025-03-01", "end": "2025-03-31" },
+    { "label": "Mar-Apr", "warm": "2025-03-01", "start": "2025-04-01", "end": "2025-04-30" },
+]
 
-def optimize_all():
-    done = load_done_set(OUTPUT_XLSX)
-    total = len(STOCKS) * len(FAST_VALS) * len(SLOW_VALS)
-    print(f"Running up to {total} backtests (fast < slow only)...\n")
+# ─── backtest utility ───────────────────────────────────────────────────────────
+def backtest(symbol, fast, mid1, mid2, mid3, atr_mult, warm, start, end):
+    cerebro = bt.Cerebro(stdstats=False)
+    cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
+                        timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
+    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
 
-    for symbol in STOCKS:
-        df_feed = load_candles(symbol, START, END)
-        for fast in FAST_VALS:
-            for slow in SLOW_VALS:
-                # only test when fast < slow
-                if fast >= slow:
-                    continue
+    df = load_candles(symbol, warm, end)
+    df.index = pd.to_datetime(df.index)
 
-                key = (symbol, fast, slow)
-                if key in done:
-                    continue
+    data = bt.feeds.PandasData(
+        dataname    = df,
+        fromdate    = pd.to_datetime(start),
+        todate      = pd.to_datetime(end),
+        timeframe   = bt.TimeFrame.Minutes,
+        compression = 1,
+    )
+    cerebro.adddata(data)
+    cerebro.addstrategy(
+        HmaMultiTrendStrategy,
+        fast=fast, mid1=mid1, mid2=mid2, mid3=mid3,
+        atr_mult=atr_mult, printlog=False
+    )
 
-                cerebro = bt.Cerebro()
-                cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
-                                    timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
-                cerebro.addanalyzer(bt.analyzers.DrawDown,    _name="drawdown")
-                cerebro.addanalyzer(bt.analyzers.TradeAnalyzer,_name="trades")
+    strat = cerebro.run()[0]
+    s = strat.analyzers.sharpe.get_analysis().get("sharperatio", float("-inf"))
+    tr = strat.analyzers.trades.get_analysis()
+    won  = tr.get("won", {}).get("total", 0)
+    lost = tr.get("lost", {}).get("total", 0)
+    trades = won + lost
+    wr     = (won / trades * 100) if trades else 0.0
 
-                data = bt.feeds.PandasData(
-                    dataname=df_feed,
-                    timeframe=bt.TimeFrame.Minutes,
-                    compression=1
-                )
-                cerebro.adddata(data, name=symbol)
+    avg_w = tr.get("won", {}).get("pnl", {}).get("average", 0.0)
+    avg_l = tr.get("lost", {}).get("pnl", {}).get("average", 0.0)
+    exp   = (won/trades)*avg_w + (lost/trades)*avg_l if trades else float("-inf")
 
-                cerebro.addstrategy(
-                    HmaCrossoverStrategy,
-                    fast=fast,
-                    slow=slow,
-                    atr_mult=0.0,
-                    printlog=False
-                )
+    return {
+        "sharpe":       s,
+        "expectancy":   exp,
+        "trades":       trades,
+        "win_rate":     wr,
+    }
 
-                strat = cerebro.run()[0]
-                sa = strat.analyzers
-                raw_sh = sa.sharpe.get_analysis().get("sharperatio", None)
-                sharpe = round(raw_sh, 4) if raw_sh is not None else float("nan")
-                dd     = sa.drawdown.get_analysis().max.drawdown
-                tr     = sa.trades.get_analysis()
-                total_trades = tr.get("total", {}).get("closed", 0)
-                won          = tr.get("won",   {}).get("total",  0)
-                winpct       = (won / total_trades * 100) if total_trades else 0.0
+# ─── per‑symbol, per‑window optimisation ─────────────────────────────────────────
+def optimize_for_window(symbol, window):
+    out_all   = f"{symbol}_hma_opt_all_{window['label']}.csv"
+    out_final = f"{symbol}_hma_opt_final_{window['label']}.csv"
 
-                row = {
-                    "symbol": symbol,
-                    "fast":   fast,
-                    "slow":   slow,
-                    "sharpe": sharpe,
-                    "max_dd": round(dd, 4),
-                    "trades": total_trades,
-                    "win%":   round(winpct, 1),
-                }
-                append_to_xlsx(OUTPUT_XLSX, row)
-                done.add(key)
+    # open CSV for all stage results
+    with open(out_all, "w", newline="") as f_all:
+        writer_all = csv.writer(f_all)
+        writer_all.writerow(["stage","fast","mid1","mid2","mid3",
+                             "sharpe","expectancy","trades","win_rate"])
 
-                print(f"{symbol:8s} f={fast:<4d} s={slow:<4d}  Sharpe {sharpe:.4f}, Win% {row['win%']:.1f}%")
+        # PASS 1: fast & mid1 grid
+        s1 = []
+        for fast in FAST_RANGE:
+            for mid1 in MID1_RANGE:
+                if fast >= mid1: continue
+                rec = backtest(symbol, fast, mid1, fast*2, fast*4,
+                               ATR_MULT, window["warm"], window["start"], window["end"])
+                row = dict(stage=1, fast=fast, mid1=mid1, mid2="", mid3="", **rec)
+                writer_all.writerow(row.values())
+                s1.append(row)
+        s1.sort(key=lambda r: (-r[METRIC], -r["expectancy"], r["trades"]))
+        heads1, seen = [], set()
+        for r in s1:
+            if DISTINCT1 and r["fast"] in seen: continue
+            heads1.append(r); seen.add(r["fast"])
+            if len(heads1) >= PASS1_N: break
 
+        # PASS 2: add mid2
+        s2 = []
+        for h in heads1:
+            for mid2 in MID2_LIST:
+                if mid2 <= h["mid1"]: continue
+                rec = backtest(symbol, h["fast"], h["mid1"], mid2, h["fast"]*4,
+                               ATR_MULT, window["warm"], window["start"], window["end"])
+                row = dict(stage=2, fast=h["fast"], mid1=h["mid1"],
+                           mid2=mid2, mid3="", **rec)
+                writer_all.writerow(row.values())
+                s2.append(row)
+        s2.sort(key=lambda r: (-r[METRIC], -r["expectancy"], r["trades"]))
+        heads2, seen = [], set()
+        for r in s2:
+            if DISTINCT2 and r["mid2"] in seen: continue
+            heads2.append(r); seen.add(r["mid2"])
+            if len(heads2) >= PASS2_N: break
+
+        # PASS 3: add mid3
+        s3 = []
+        for h in heads2:
+            for mid3 in MID3_LIST:
+                if mid3 <= h["mid2"]: continue
+                rec = backtest(symbol, h["fast"], h["mid1"], h["mid2"], mid3,
+                               ATR_MULT, window["warm"], window["start"], window["end"])
+                row = dict(stage=3, fast=h["fast"], mid1=h["mid1"],
+                           mid2=h["mid2"], mid3=mid3, **rec)
+                writer_all.writerow(row.values())
+                s3.append(row)
+
+    # write final top combos
+    s3.sort(key=lambda r: (-r[METRIC], -r["expectancy"], r["trades"]))
+    with open(out_final, "w", newline="") as f_fin:
+        writer_fin = csv.writer(f_fin)
+        writer_fin.writerow(["fast","mid1","mid2","mid3",
+                             METRIC,"expectancy","trades","win_rate"])
+        for r in s3[:PASS3_N]:
+            writer_fin.writerow([
+                r["fast"], r["mid1"], r["mid2"], r["mid3"],
+                f"{r[METRIC]:.6f}", f"{r['expectancy']:.6f}",
+                r["trades"], f"{r['win_rate']:.1f}%"
+            ])
+
+    print(f"[{symbol} | {window['label']}] Wrote {out_all} & {out_final}")
+
+# ─── main ───────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    optimize_all()
+    for window in WINDOWS:
+        for symbol in SYMBOLS:
+            print(f"\n====== OPTIMIZING {symbol} | {window['label']} ======")
+            optimize_for_window(symbol, window)
