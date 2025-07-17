@@ -17,7 +17,7 @@ if _ROOT not in sys.path:
 from data.load_candles import load_candles
 from strategies.supertrend import ST
 
-SYMBOLS = ["AXISBANK", "HDFCBANK", "ICICIBANK", "INFY", "KOTAKBANK", "SBIN", "SUNPHARMA", "TECHM"]
+SYMBOLS = ["TATAMOTORS", "MARUTI", "RELIANCE", "TCS"]
 PERIODS = [20, 30, 40, 60, 80, 120, 160, 180, 240]
 MULTS   = [1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0]
 

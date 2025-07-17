@@ -18,7 +18,7 @@ from data.load_candles import load_candles
 from strategies.supertrend import ST
 
 ST_PARAMS = {
-    "HDFCBANK": dict(period=240, mult=2.0),
+    "HDFCBANK": dict(period=120, mult=1.6),
 }
 
 SYMBOLS = list(ST_PARAMS.keys())
