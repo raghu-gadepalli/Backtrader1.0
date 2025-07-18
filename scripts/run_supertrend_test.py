@@ -22,20 +22,20 @@ from strategies.supertrend import ST
 
 # ——— Your SuperTrend parameters per symbol —————————————————————————————
 ST_PARAMS = {
-    "AXISBANK":   dict(period=120, mult=1.6),
-    "HDFCBANK":   dict(period=120, mult=1.6),
-    "ICICIBANK":  dict(period=120, mult=1.6),
-    "INFY":       dict(period=120, mult=1.6),
-    "KOTAKBANK":  dict(period=120, mult=1.6),
-    "MARUTI":     dict(period=120, mult=1.6),
-    "NIFTY 50":   dict(period=120, mult=1.6),
-    "NIFTY BANK": dict(period=120, mult=1.6),
-    "RELIANCE":   dict(period=120, mult=1.6),
-    "SBIN":       dict(period=120, mult=1.6),
-    "SUNPHARMA":  dict(period=120, mult=1.6),
-    "TATAMOTORS": dict(period=120, mult=1.6),
-    "TCS":        dict(period=120, mult=1.6),
-    "TECHM":      dict(period=120, mult=1.6),
+    "AXISBANK":   dict(period=20, mult=3),
+    "HDFCBANK":   dict(period=20, mult=3),
+    "ICICIBANK":  dict(period=20, mult=3),
+    "INFY":       dict(period=20, mult=3),
+    "KOTAKBANK":  dict(period=20, mult=3),
+    "MARUTI":     dict(period=20, mult=3),
+    "NIFTY 50":   dict(period=20, mult=3),
+    "NIFTY BANK": dict(period=20, mult=3),
+    "RELIANCE":   dict(period=20, mult=3),
+    "SBIN":       dict(period=20, mult=3),
+    "SUNPHARMA":  dict(period=20, mult=3),
+    "TATAMOTORS": dict(period=20, mult=3),
+    "TCS":        dict(period=20, mult=3),
+    "TECHM":      dict(period=20, mult=3),
 }
 
 SYMBOLS = list(ST_PARAMS.keys())
