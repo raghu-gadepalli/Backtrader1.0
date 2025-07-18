@@ -22,14 +22,26 @@ from strategies.supertrend import ST
 
 # ——— Your SuperTrend parameters per symbol —————————————————————————————
 ST_PARAMS = {
-    "MARUTI": dict(period=20, mult=3.0),
-    # add other symbols here...
+    "AXISBANK":   dict(period=120, mult=1.6),
+    "HDFCBANK":   dict(period=120, mult=1.6),
+    "ICICIBANK":  dict(period=120, mult=1.6),
+    "INFY":       dict(period=120, mult=1.6),
+    "KOTAKBANK":  dict(period=120, mult=1.6),
+    "MARUTI":     dict(period=120, mult=1.6),
+    "NIFTY 50":   dict(period=120, mult=1.6),
+    "NIFTY BANK": dict(period=120, mult=1.6),
+    "RELIANCE":   dict(period=120, mult=1.6),
+    "SBIN":       dict(period=120, mult=1.6),
+    "SUNPHARMA":  dict(period=120, mult=1.6),
+    "TATAMOTORS": dict(period=120, mult=1.6),
+    "TCS":        dict(period=120, mult=1.6),
+    "TECHM":      dict(period=120, mult=1.6),
 }
 
 SYMBOLS = list(ST_PARAMS.keys())
 
 # Global warm-up date (must be well before any test window)
-WARMUP = "2025-04-01"
+WARMUP = "2025-06-25"
 
 # Define only the windows you actually want to evaluate; date‑only is OK
 PERIODS = {
