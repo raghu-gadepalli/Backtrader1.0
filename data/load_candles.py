@@ -46,6 +46,41 @@ def load_candles(symbol: str,
     return df
 
 
+def load_candles_with_history(symbol: str,
+                              start:   str,
+                              end:     str,
+                              history_bars: int) -> pd.DataFrame:
+    """
+    Fetch last `history_bars` 1‑min candles before `start` plus
+    all candles between `start` and `end`. Returns a single DataFrame.
+    """
+    # 1) history portion
+    hist_q = text("""
+        SELECT candle_time AS dt, `open`,`high`,`low`,`close`,`volume`
+          FROM candles
+         WHERE symbol    = :symbol
+           AND frequency = 1
+           AND candle_time < :start
+         ORDER BY candle_time DESC
+         LIMIT :hb
+    """)
+    with get_session() as sess:
+        df_hist = pd.read_sql(hist_q, sess.bind,
+                              params={"symbol":symbol,
+                                      "start": start,
+                                      "hb":    history_bars})
+    df_hist["dt"] = pd.to_datetime(df_hist["dt"])
+    df_hist.set_index("dt", inplace=True)
+    df_hist.sort_index(inplace=True)
+
+    # 2) main window portion
+    df_main = load_candles(symbol, start, end)
+
+    # 3) concat & return
+    return pd.concat([df_hist, df_main])
+
+
+
 if __name__ == "__main__":
     # Quick smoke test when running python data/load_candles.py
     df = load_candles("INFY", "2025-04-01", "2025-07-06")

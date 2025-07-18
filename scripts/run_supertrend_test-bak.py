@@ -5,60 +5,64 @@ import os
 import sys
 import pandas as pd
 
-# headless plotting
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib; matplotlib.use("Agg", force=True)
 
 import backtrader as bt
 
-# ─── project root ───────────────────────────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from data.load_candles import load_candles
-from strategies.supertrend_bak import ST  # your SuperTrend strategy
+from strategies.supertrend import ST
 
-# finalized SuperTrend settings per symbol
 ST_PARAMS = {
-    # "HDFCBANK": dict(period=240, mult=2.0),
-    "HDFCBANK": dict(period=240, mult=2.0),
+    # "HDFCBANK": dict(period=120, mult=1.6),
+    # "AXISBANK": dict(period=120, mult=1.6),
+    # "ICICIBANK": dict(period=120, mult=1.6),
+    # "INFY": dict(period=120, mult=1.6),
+    "MARUTI": dict(period=120, mult=1.6),
+    # "RELIANCE": dict(period=120, mult=1.6),
+    # "TATAMOTORS": dict(period=120, mult=1.6),
+    # "TCS": dict(period=120, mult=1.6),
+    # "TECHM": dict(period=120, mult=1.6),
+    # "KOTAKBANK": dict(period=120, mult=1.6),
+    # "SBIN": dict(period=120, mult=1.6),
+    # "SUNPHARMA": dict(period=120, mult=1.6),
 }
 
 SYMBOLS = list(ST_PARAMS.keys())
 
-# warm‑up start (for indicator priming)
-WARMUP = "2025-03-01"
+WARMUP = "2025-04-01"
 
-# explicit evaluation windows with clear labels
 PERIODS = {
-    "Mar-2025":   ("2025-03-01", "2025-03-31"),
-    "Apr-2025":   ("2025-04-01", "2025-04-30"),
+    # "Mar-2025":   ("2025-03-01", "2025-03-31"),
+    # "Apr-2025":   ("2025-04-01", "2025-04-30"),
     "May-2025":   ("2025-05-01", "2025-05-31"),
-    "June-2025":  ("2025-06-01", "2025-06-30"),
-    "July1-2025": ("2025-07-01", "2025-07-14"),
+    # "June-2025":  ("2025-06-01", "2025-06-30"),
+    # "July1-2025": ("2025-07-01", "2025-07-14"),
 }
 
-# collect test results
 results = []
 
 def run_period(symbol, label, start, end):
     params = ST_PARAMS[symbol]
-    # load full data (warm‑up through end of this window)
+
+    # Load complete data for warmup
     df = load_candles(symbol, WARMUP, end)
     df.index = pd.to_datetime(df.index)
 
     cerebro = bt.Cerebro()
     cerebro.addanalyzer(bt.analyzers.SharpeRatio,   _name="sharpe",
-                        timeframe=bt.TimeFrame.Minutes,
-                        riskfreerate=0.0)
+                        timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
 
-    # slice feed exactly to [start, end] for analyzers
+    # Use full data (WARMUP through end)
     data = bt.feeds.PandasData(
         dataname    = df,
-        fromdate    = pd.to_datetime(start),
+        fromdate    = pd.to_datetime(WARMUP),
         todate      = pd.to_datetime(end),
         timeframe   = bt.TimeFrame.Minutes,
         compression = 1,
@@ -67,11 +71,13 @@ def run_period(symbol, label, start, end):
 
     cerebro.addstrategy(
         ST,
-        st_period = params["period"],
-        st_mult   = params["mult"]
+        st_period=params["period"],
+        st_mult=params["mult"],
+        eval_start=pd.to_datetime(start)  # Actual evaluation start date
     )
 
     strat = cerebro.run()[0]
+
     sharpe  = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
     dd      = strat.analyzers.drawdown.get_analysis().max.drawdown
     tr      = strat.analyzers.trades.get_analysis()
@@ -86,7 +92,6 @@ def run_period(symbol, label, start, end):
     print(f"Total Trades : {tot}")
     print(f"Win Rate     : {winrate:.1f}% ({won}W/{lost}L)")
 
-    # store for CSV
     results.append({
         "symbol":       symbol,
         "period_label": label,
@@ -105,6 +110,5 @@ if __name__ == "__main__":
         for label, (start, end) in PERIODS.items():
             run_period(sym, label, start, end)
 
-    # write test results to CSV
     pd.DataFrame(results).to_csv("supertrend_test_results.csv", index=False)
     print("\nWrote supertrend_test_results.csv")

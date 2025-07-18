@@ -17,7 +17,7 @@ from models.trade_models import Candle
 #  CONFIGURATION 
 
 API_KEY      = "bv185n0541aaoish"
-ACCESS_TOKEN = "ojUmPwWGGEVD3nvAOZ5uYgJogJsGI8hV"
+ACCESS_TOKEN = "MVUXQ0DHXGNcIL20cJ1RCS5LhpVbf7Uh"
 
 # Define list of (SYMBOL, TOKEN)
 
@@ -41,11 +41,11 @@ SYMBOLS = [
 
 
 
-# START_DATE = "2025-06-01"
-# END_DATE   = "2025-07-07"
+START_DATE = "2025-07-15"
+END_DATE   = "2025-07-17"
 
-START_DATE = "2024-12-01"
-END_DATE   = "2024-12-31"
+# START_DATE = "2024-12-01"
+# END_DATE   = "2024-12-31"
 
 FREQUENCIES = ["1m"]
 

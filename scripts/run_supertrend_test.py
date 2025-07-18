@@ -4,69 +4,91 @@
 import os
 import sys
 import pandas as pd
+from datetime import datetime
 
 os.environ["MPLBACKEND"] = "Agg"
 import matplotlib; matplotlib.use("Agg", force=True)
 
 import backtrader as bt
 
+# ────────── Adjust project root if needed ─────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+# ────────────────────────────────────────────────────────────────────────────────
 
 from data.load_candles import load_candles
 from strategies.supertrend import ST
 
+# ——— Your SuperTrend parameters per symbol —————————————————————————————
 ST_PARAMS = {
-    "HDFCBANK": dict(period=120, mult=1.6),
+    "MARUTI": dict(period=20, mult=3.0),
+    # add other symbols here...
 }
 
 SYMBOLS = list(ST_PARAMS.keys())
 
-WARMUP = "2025-03-01"
+# Global warm-up date (must be well before any test window)
+WARMUP = "2025-04-01"
 
+# Define only the windows you actually want to evaluate; date‑only is OK
 PERIODS = {
-    "Mar-2025":   ("2025-03-01", "2025-03-31"),
-    "Apr-2025":   ("2025-04-01", "2025-04-30"),
-    "May-2025":   ("2025-05-01", "2025-05-31"),
-    "June-2025":  ("2025-06-01", "2025-06-30"),
     "July1-2025": ("2025-07-01", "2025-07-14"),
+    # "May-2025":   ("2025-05-01", "2025-05-31"),
+    # etc...
 }
 
 results = []
 
-def run_period(symbol, label, start, end):
-    params = ST_PARAMS[symbol]
+def normalize_dt(ds, is_start):
+    """Convert 'YYYY-MM-DD' → 'YYYY-MM-DD HH:MM:SS' for start/end."""
+    if len(ds) == 10:
+        return ds + (" 00:00:00" if is_start else " 23:59:59")
+    return ds
 
-    # Load complete data for warmup
-    df = load_candles(symbol, WARMUP, end)
+def run_period(symbol, label, start_raw, end_raw):
+    params = ST_PARAMS[symbol]
+    period = params["period"]
+
+    # build full timestamps
+    start_str = normalize_dt(start_raw, True)
+    end_str   = normalize_dt(end_raw,  False)
+    start_dt  = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")
+    end_dt    = datetime.strptime(end_str,   "%Y-%m-%d %H:%M:%S")
+
+    # 1) load warm‑up → end
+    warm_str = WARMUP + " 00:00:00"
+    df = load_candles(symbol, warm_str, end_str)
     df.index = pd.to_datetime(df.index)
 
+    # 2) set up Cerebro
     cerebro = bt.Cerebro()
     cerebro.addanalyzer(bt.analyzers.SharpeRatio,   _name="sharpe",
                         timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
 
-    # Use full data (WARMUP through end)
+    # 3) feed full history
     data = bt.feeds.PandasData(
         dataname    = df,
-        fromdate    = pd.to_datetime(WARMUP),
-        todate      = pd.to_datetime(end),
+        fromdate    = datetime.strptime(warm_str, "%Y-%m-%d %H:%M:%S"),
+        todate      = end_dt,
         timeframe   = bt.TimeFrame.Minutes,
         compression = 1,
     )
     cerebro.adddata(data, name=symbol)
 
+    # 4) add your strategy, only eval from start_dt
     cerebro.addstrategy(
         ST,
-        st_period=params["period"],
-        st_mult=params["mult"],
-        eval_start=pd.to_datetime(start)  # Actual evaluation start date
+        st_period  = period,
+        st_mult    = params["mult"],
+        eval_start = start_dt
     )
 
     strat = cerebro.run()[0]
 
+    # 5) collect metrics
     sharpe  = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
     dd      = strat.analyzers.drawdown.get_analysis().max.drawdown
     tr      = strat.analyzers.trades.get_analysis()
@@ -75,7 +97,10 @@ def run_period(symbol, label, start, end):
     tot     = tr.get("total",{}).get("closed", 0)
     winrate = (won / tot * 100) if tot else 0.0
 
-    print(f"\n--- {symbol} | {label} @ ST({params['period']},{params['mult']}) ---")
+    # 6) print and record
+    print(f"\n--- {symbol} | {label} @ ST({period},{params['mult']}) ---")
+    print(f"Warmup      → {warm_str}")
+    print(f"Eval window → {start_str} to {end_str}")
     print(f"Sharpe Ratio : {sharpe:.2f}")
     print(f"Max Drawdown : {dd:.2f}%")
     print(f"Total Trades : {tot}")
@@ -84,9 +109,10 @@ def run_period(symbol, label, start, end):
     results.append({
         "symbol":       symbol,
         "period_label": label,
-        "start":        start,
-        "end":          end,
-        "st_period":    params["period"],
+        "warmup":       warm_str,
+        "start":        start_str,
+        "end":          end_str,
+        "st_period":    period,
         "st_mult":      params["mult"],
         "sharpe":       sharpe,
         "drawdown":     dd,
@@ -96,8 +122,8 @@ def run_period(symbol, label, start, end):
 
 if __name__ == "__main__":
     for sym in SYMBOLS:
-        for label, (start, end) in PERIODS.items():
-            run_period(sym, label, start, end)
+        for label, (s,e) in PERIODS.items():
+            run_period(sym, label, s, e)
 
     pd.DataFrame(results).to_csv("supertrend_test_results.csv", index=False)
     print("\nWrote supertrend_test_results.csv")
