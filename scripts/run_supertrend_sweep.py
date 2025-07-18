@@ -20,11 +20,14 @@ from data.load_candles     import load_candles
 from strategies.supertrend import ST
 
 # ─── CONFIG ────────────────────────────────────────────────────────────────────
-SYMBOLS     = [
-    "AXISBANK", "HDFCBANK", "ICICIBANK", "INFY", "KOTAKBANK",
-    "MARUTI", "NIFTY 50", "NIFTY BANK", "RELIANCE",
-    "SBIN", "SUNPHARMA", "TATAMOTORS", "TCS", "TECHM"
-]
+# SYMBOLS     = [
+#     "AXISBANK", "HDFCBANK", "ICICIBANK", "INFY", "KOTAKBANK",
+#     "MARUTI", "NIFTY 50", "NIFTY BANK", "RELIANCE",
+#     "SBIN", "SUNPHARMA", "TATAMOTORS", "TCS", "TECHM"
+# ]
+
+SYMBOLS     = ["AXISBANK"]
+
 PERIODS     = [20, 30, 40, 60, 80, 120, 160, 180, 240]
 MULTS       = [1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0]
 WARMUP      = "2024-12-01"
