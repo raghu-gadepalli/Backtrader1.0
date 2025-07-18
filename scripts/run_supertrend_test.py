@@ -33,7 +33,7 @@ WARMUP = "2025-04-01"
 
 # Define only the windows you actually want to evaluate; date‑only is OK
 PERIODS = {
-    "July1-2025": ("2025-07-01", "2025-07-14"),
+    "July-2025": ("2025-07-01", "2025-07-17"),
     # "May-2025":   ("2025-05-01", "2025-05-31"),
     # etc...
 }
@@ -63,6 +63,10 @@ def run_period(symbol, label, start_raw, end_raw):
 
     # 2) set up Cerebro
     cerebro = bt.Cerebro()
+    # cerebro.broker.set_coc(True)      # execute orders at the bar’s close
+    cerebro.broker.setcash(500_000)   # ample cash so orders don’t reject
+    # cerebro.broker.setcommission(commission=0.0002)
+
     cerebro.addanalyzer(bt.analyzers.SharpeRatio,   _name="sharpe",
                         timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")

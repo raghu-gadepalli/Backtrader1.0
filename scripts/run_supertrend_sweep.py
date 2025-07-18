@@ -17,7 +17,7 @@ if _ROOT not in sys.path:
 from data.load_candles import load_candles
 from strategies.supertrend import ST
 
-SYMBOLS = ["TATAMOTORS", "MARUTI", "RELIANCE", "TCS"]
+SYMBOLS = ["MARUTI", "NIFTY 50", "NIFTY BANK"]
 PERIODS = [20, 30, 40, 60, 80, 120, 160, 180, 240]
 MULTS   = [1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0]
 
@@ -48,6 +48,10 @@ def run_sweep(symbol, window, period, mult):
     vol_baseline = tmp.loc[window["start"]:window["end"], "tr"].mean()
 
     cerebro = bt.Cerebro()
+    cerebro.broker.set_coc(True)      # execute orders at the bar’s close
+    cerebro.broker.setcash(500_000)   # ample cash so orders don’t reject
+    cerebro.broker.setcommission(commission=0.0002)
+
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
                         timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")
