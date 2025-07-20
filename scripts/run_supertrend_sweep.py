@@ -1,168 +1,200 @@
 #!/usr/bin/env python3
-# scripts/run_supertrend_sweep.py
+"""
+scripts/run_supertrend_sweep.py
 
-import os
-import sys
-import csv
-from itertools import product
+Two‑pass coordinate descent for SuperTrend across multiple symbols:
+1) Sweep ATR period (with default mult) → pick top periods
+2) Drill multiplier on those periods     → pick final survivors
+
+Writes two merged CSVs into results/:
+  - supertrend_opt_all_stages.csv   (stage 1 + stage 2 rows, with symbol)
+  - supertrend_opt_final.csv        (final survivors)
+"""
+
+import os, sys, csv
 from datetime import datetime
-import pandas as pd
-import numpy as np
-import backtrader as bt
 
-# ─── project root setup ───────────────────────────────────────────────────────
+# ─── project root ────────────────────────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
-# ────────────────────────────────────────────────────────────────────────────────
 
-from data.load_candles     import load_candles
+import backtrader as bt
+from data.load_candles    import load_candles
 from strategies.supertrend import ST
 
-# ─── CONFIG ────────────────────────────────────────────────────────────────────
-# SYMBOLS     = [
-#     "AXISBANK", "HDFCBANK", "ICICIBANK", "INFY", "KOTAKBANK",
-#     "MARUTI", "NIFTY 50", "NIFTY BANK", "RELIANCE",
-#     "SBIN", "SUNPHARMA", "TATAMOTORS", "TCS", "TECHM"
-# ]
+# ─── USER PARAMETERS ─────────────────────────────────────────────────────────
+SYMBOLS      = ["ICICIBANK", "INFY", "RELIANCE"]
+WARMUP_START = "2025-04-01"
+END          = "2025-07-06"
 
-SYMBOLS     = ["AXISBANK"]
+# two‑pass grid
+ST_PERIODS   = [10, 20, 30, 40, 50]       # ATR lookback
+ST_MULTS     = [2.0, 4.0, 6.0, 8.0, 10.0] # multiplier
+DEFAULT_MULT = ST_MULTS[len(ST_MULTS)//2] # e.g. 6.0
 
-PERIODS     = [20, 30, 40, 60, 80, 120, 160, 180, 240]
-MULTS       = [1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0]
-WARMUP      = "2024-12-01"
-END_FULL    = "2025-07-17"   # up to today
-RESULTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../results"))
-RESULTS_CSV = os.path.join(RESULTS_DIR, "supertrend_sweep_results.csv")
-# ────────────────────────────────────────────────────────────────────────────────
+PASS1_N      = 3    # keep top 3 periods
+PASS2_N      = 3    # keep top 3 multipliers
+DISTINCT1    = True # unique period in pass1
+DISTINCT2    = True # unique mult   in pass2
 
-class PnLAnalyzer(bt.Analyzer):
-    def __init__(self):
-        super().__init__()
-        self.pnls = []
-    def notify_trade(self, trade):
-        if trade.isclosed:
-            self.pnls.append(trade.pnlcomm)
-    def get_analysis(self):
-        return self.pnls
+STARTING_CASH   = 500_000
+COMMISSION_RATE = 0.0002
 
 def make_cerebro():
     cerebro = bt.Cerebro(stdstats=False)
     cerebro.broker.set_coc(True)
-    cerebro.broker.setcash(500_000)
-    cerebro.broker.setcommission(commission=0.0002)
+    cerebro.broker.setcash(STARTING_CASH)
+    cerebro.broker.setcommission(commission=COMMISSION_RATE)
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
                         timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
-    cerebro.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
-    cerebro.addanalyzer(PnLAnalyzer,                _name="pnl")
     return cerebro
 
-def build_monthly_windows(start_full, end_full):
-    start_dt = pd.to_datetime(start_full)
-    end_dt   = pd.to_datetime(end_full)
-    windows = []
-    for ms in pd.date_range(start_dt, end_dt, freq="MS"):
-        me = ms + pd.offsets.MonthEnd(0)
-        if me > end_dt:
-            me = end_dt
-        windows.append({
-            "label": ms.strftime("%b-%Y"),
-            "warm":  start_full,
-            "start": ms.strftime("%Y-%m-%d"),
-            "end":   me.strftime("%Y-%m-%d")
-        })
-    return windows
+def backtest(symbol, period, mult):
+    """
+    Run one SuperTrend backtest; return (sharpe, expectancy, total_trades, win_rate%).
+    """
+    cerebro = make_cerebro()
+    df      = load_candles(symbol, WARMUP_START, END)
+    df.index = df.index if hasattr(df, 'index') else df  # ensure datetime index
 
-def run_sweep():
-    os.makedirs(RESULTS_DIR, exist_ok=True)
-    windows = build_monthly_windows(WARMUP, END_FULL)
+    data = bt.feeds.PandasData(
+        dataname    = df,
+        timeframe   = bt.TimeFrame.Minutes,
+        compression = 1
+    )
+    cerebro.adddata(data)
+    cerebro.addstrategy(ST, st_period=period, st_mult=mult)
 
-    write_header = not os.path.exists(RESULTS_CSV)
-    with open(RESULTS_CSV, "a", newline="") as f:
-        writer = csv.writer(f)
-        if write_header:
-            writer.writerow([
-                "symbol","window","period","mult","vol_baseline",
-                "sharpe","drawdown","trades","win_rate","expectancy"
-            ])
+    strat = cerebro.run()[0]
+    # Sharpe
+    sr   = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
+    # Trades
+    tr   = strat.analyzers.trades.get_analysis()
+    won  = tr.get("won",{}).get("total", 0)
+    lost = tr.get("lost",{}).get("total", 0)
+    tot  = won + lost
+    # Expectancy
+    avg_w = tr.get("won",{}).get("pnl",{}).get("average", 0.0)
+    avg_l = tr.get("lost",{}).get("pnl",{}).get("average", 0.0)
+    expc  = (won/tot)*avg_w + (lost/tot)*avg_l if tot else float("nan")
+    # Win rate %
+    wr    = (won/tot*100) if tot else 0.0
 
-        for symbol in SYMBOLS:
-            print(f"\n=== {symbol} ===")
-            df_full = load_candles(
-                symbol,
-                f"{WARMUP} 00:00:00",
-                f"{END_FULL} 23:59:59"
-            )
-            df_full.index = pd.to_datetime(df_full.index)
-            # Compute True Range for vol_baseline
-            df_full["prev_close"] = df_full["close"].shift(1)
-            df_full["TR"] = np.maximum(
-                df_full["high"] - df_full["low"],
-                np.maximum(
-                    (df_full["high"] - df_full["prev_close"]).abs(),
-                    (df_full["low"]  - df_full["prev_close"]).abs()
-                )
-            )
-            vol_map = {}
-            for w in windows:
-                mask = (df_full.index >= w["start"]) & (df_full.index <= w["end"])
-                vol_map[w["label"]] = df_full.loc[mask, "TR"].mean()
+    return sr, expc, tot, wr
 
-            for w in windows:
-                label = w["label"]
-                vb    = vol_map[label]
-                df_win = df_full.loc[df_full.index <= pd.to_datetime(w["end"])]
-
-                for period, mult in product(PERIODS, MULTS):
-                    cerebro = make_cerebro()
-                    data = bt.feeds.PandasData(
-                        dataname    = df_win,
-                        timeframe   = bt.TimeFrame.Minutes,
-                        compression = 1,
-                        fromdate    = datetime.strptime(
-                            w["warm"] + " 00:00:00", "%Y-%m-%d %H:%M:%S"),
-                        todate      = datetime.strptime(
-                            w["end"]  + " 23:59:59", "%Y-%m-%d %H:%M:%S"),
-                    )
-                    cerebro.adddata(data, name=symbol)
-                    cerebro.addstrategy(
-                        ST,
-                        st_period  = period,
-                        st_mult    = mult,
-                        eval_start = datetime.strptime(
-                            w["start"] + " 00:00:00", "%Y-%m-%d %H:%M:%S")
-                    )
-
-                    strat = cerebro.run()[0]
-
-                    # Extract analyzers
-                    sr   = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
-                    dd   = strat.analyzers.drawdown.get_analysis().max.drawdown
-                    tr   = strat.analyzers.trades.get_analysis()
-                    won  = tr.get("won",  {}).get("total", 0)
-                    tot  = tr.get("total",{}).get("closed", 0)
-                    wr   = (won/tot*100) if tot else 0.0
-
-                    # Calculate expectancy
-                    pnls     = strat.analyzers.pnl.get_analysis()
-                    wins     = [p for p in pnls if p>0]
-                    losses   = [abs(p) for p in pnls if p<=0]
-                    avg_win  = sum(wins)/len(wins)     if wins   else 0.0
-                    avg_loss = sum(losses)/len(losses) if losses else 0.0
-                    win_pct  = len(wins)/len(pnls)      if pnls   else 0.0
-                    expectancy = win_pct*avg_win - (1-win_pct)*avg_loss
-
-                    writer.writerow([
-                        symbol, label, period, mult, f"{vb:.6f}",
-                        f"{sr:.6f}", f"{dd:.6f}", tot, f"{wr:.2f}",
-                        f"{expectancy:.6f}"
-                    ])
-                    f.flush()
-                    print(f"{symbol} | {label} | ST({period},{mult}) → "
-                          f"Sharpe {sr:.2f}, Trades {tot}, Win {wr:.1f}%, Exp {expectancy:.2f}")
-
-    print(f"\nSweep results streaming into → {RESULTS_CSV}")
+def sort_key(r):
+    return (-r["sharpe"], -r["expectancy"], r["trades"])
 
 if __name__ == "__main__":
-    run_sweep()
+    # prepare results folder
+    RESULTS_DIR = os.path.join(_ROOT, "results")
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+    # open merged “all stages” CSV
+    all_path   = os.path.join(RESULTS_DIR, "supertrend_opt_all_stages.csv")
+    all_file   = open(all_path, "w", newline="")
+    all_writer = csv.writer(all_file)
+    all_writer.writerow([
+        "symbol","stage","period","mult",
+        "sharpe","expectancy","trades","win_rate"
+    ])
+    all_file.flush()
+
+    # open merged “final” CSV
+    final_path   = os.path.join(RESULTS_DIR, "supertrend_opt_final.csv")
+    final_file   = open(final_path, "w", newline="")
+    final_writer = csv.writer(final_file)
+    final_writer.writerow([
+        "symbol","period","mult",
+        "sharpe","expectancy","trades","win_rate"
+    ])
+    final_file.flush()
+
+    for symbol in SYMBOLS:
+        print(f"\n====== OPTIMIZING {symbol} ======")
+
+        # PASS 1: sweep ATR periods at DEFAULT_MULT
+        p1 = []
+        total = len(ST_PERIODS)
+        for i, period in enumerate(ST_PERIODS, 1):
+            print(f"[{symbol}] P1 {i}/{total} → period={period}, mult={DEFAULT_MULT}")
+            sr, expc, tot, wr = backtest(symbol, period, DEFAULT_MULT)
+            rec = {
+                "symbol":     symbol,
+                "stage":      1,
+                "period":     period,
+                "mult":       DEFAULT_MULT,
+                "sharpe":     sr,
+                "expectancy": expc,
+                "trades":     tot,
+                "win_rate":   wr,
+            }
+            all_writer.writerow([
+                rec["symbol"], rec["stage"], rec["period"], rec["mult"],
+                f"{sr:.6f}", f"{expc:.6f}", rec["trades"], f"{wr:.2f}"
+            ])
+            all_file.flush()
+            p1.append(rec)
+
+        # pick top PASS1_N periods
+        p1.sort(key=sort_key)
+        heads1, seen1 = [], set()
+        for r in p1:
+            if DISTINCT1 and r["period"] in seen1:
+                continue
+            heads1.append(r)
+            seen1.add(r["period"])
+            if len(heads1) >= PASS1_N:
+                break
+
+        # PASS 2: for each top period, sweep multipliers
+        p2 = []
+        for idx, h in enumerate(heads1, 1):
+            period = h["period"]
+            print(f"[{symbol}] P2 #{idx}/{len(heads1)} → drilling mult on period={period}")
+            for mult in ST_MULTS:
+                print(f"    mult={mult}")
+                sr, expc, tot, wr = backtest(symbol, period, mult)
+                rec = {
+                    "symbol":     symbol,
+                    "stage":      2,
+                    "period":     period,
+                    "mult":       mult,
+                    "sharpe":     sr,
+                    "expectancy": expc,
+                    "trades":     tot,
+                    "win_rate":   wr,
+                }
+                all_writer.writerow([
+                    rec["symbol"], rec["stage"], rec["period"], rec["mult"],
+                    f"{sr:.6f}", f"{expc:.6f}", rec["trades"], f"{wr:.2f}"
+                ])
+                all_file.flush()
+                p2.append(rec)
+
+        # pick top PASS2_N (final survivors)
+        p2.sort(key=sort_key)
+        heads2, seen2 = [], set()
+        for r in p2:
+            if DISTINCT2 and r["mult"] in seen2:
+                continue
+            heads2.append(r)
+            seen2.add(r["mult"])
+            if len(heads2) >= PASS2_N:
+                break
+
+        # write final survivors
+        for r in heads2:
+            final_writer.writerow([
+                r["symbol"], r["period"], r["mult"],
+                f"{r['sharpe']:.6f}", f"{r['expectancy']:.6f}",
+                r["trades"], f"{r['win_rate']:.2f}"
+            ])
+            final_file.flush()
+
+    all_file.close()
+    final_file.close()
+    print(f"\nWrote merged all‑stages → {all_path}")
+    print(f"Wrote merged final   → {final_path}")
