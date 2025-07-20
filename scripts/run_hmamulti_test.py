@@ -25,41 +25,22 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 from data.load_candles        import load_candles
 from strategies.hma_multitrend import HmaMultiTrendStrategy
 
-# ——— Your HMA‑Multi parameters per symbol —————————————————————————————
+# ——— Your HMA‑Multi parameters per symbol (ATR/ADX removed) ————————————
 HMA_MULTI_PARAMS = {
-    "AXISBANK":  dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "HDFCBANK":  dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "ICICIBANK": dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "INFY":      dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "KOTAKBANK": dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "MARUTI":    dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "SBIN":      dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "SUNPHARMA": dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "TATAMOTORS":dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "TCS":       dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
-    "TECHM":     dict(fast=600, mid1=760, mid2=1040, mid3=1520,
-                      atr_period=14, atr_mult=0.1, adx_period=14,
-                      adx_threshold=25.0, printlog=False),
+    "ICICIBANK": dict(
+        fast     = 180,
+        mid1     = 240,
+        mid2     = 360,
+        mid3     = 720,
+        printlog = False
+    ),
+    "RELIANCE": dict(
+        fast     = 220,
+        mid1     = 440,
+        mid2     = 800,
+        mid3     = 1600,
+        printlog = False
+    ),
 }
 
 SYMBOLS = list(HMA_MULTI_PARAMS.keys())
@@ -112,7 +93,16 @@ def run_period(symbol: str, label: str, start_raw: str, end_raw: str):
         compression = 1,
     )
     cerebro.adddata(data, name=symbol)
-    cerebro.addstrategy(HmaMultiTrendStrategy, **params)
+
+    # only pass the HMA params (ATR/ADX will use their defaults)
+    cerebro.addstrategy(
+        HmaMultiTrendStrategy,
+        fast     = params["fast"],
+        mid1     = params["mid1"],
+        mid2     = params["mid2"],
+        mid3     = params["mid3"],
+        printlog = params.get("printlog", False)
+    )
 
     strat = cerebro.run()[0]
 
@@ -132,9 +122,8 @@ def run_period(symbol: str, label: str, start_raw: str, end_raw: str):
 
     # print & store
     print(f"\n--- {symbol} | {label} @ HMA_MULTI "
-          f"({params['fast']},{params['mid1']},{params['mid2']},{params['mid3']}, "
-          f"atr{params['atr_period']}/{params['atr_mult']}, "
-          f"adx{params['adx_period']}/{params['adx_threshold']}) ---")
+          f"(fast={params['fast']}, mid1={params['mid1']}, "
+          f"mid2={params['mid2']}, mid3={params['mid3']}) ---")
     print(f"Warm‑up      → {warm_str}")
     print(f"Eval window → {start_str} to {end_str}")
     print(f"Sharpe Ratio : {sharpe:.2f}")
@@ -153,10 +142,6 @@ def run_period(symbol: str, label: str, start_raw: str, end_raw: str):
         "mid1":         params["mid1"],
         "mid2":         params["mid2"],
         "mid3":         params["mid3"],
-        "atr_period":   params["atr_period"],
-        "atr_mult":     params["atr_mult"],
-        "adx_period":   params["adx_period"],
-        "adx_threshold":params["adx_threshold"],
         "sharpe":       sharpe,
         "drawdown":     dd,
         "trades":       tot,

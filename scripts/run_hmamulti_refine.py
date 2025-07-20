@@ -34,18 +34,17 @@ COMMISSION    = 0.0002
 # ─── Manually‑picked combos per symbol for refinement ────────────────────────
 # Only include the symbols you want to refine in this dict:
 COMBINATIONS = {
-    "ICICIBANK": [
-        {"fast":  90, "mid1": 360, "mid2":  480, "mid3":  720},
-        {"fast": 120, "mid1": 480, "mid2":  720, "mid3": 1440},
-        {"fast": 150, "mid1": 600, "mid2":  900, "mid3": 1800},
-    ],
     "INFY": [
-        {"fast":  60, "mid1": 240, "mid2":  360, "mid3":  720},
-        {"fast":  90, "mid1": 360, "mid2":  480, "mid3":  960},
+        {"fast":  50, "mid1": 150, "mid2": 300,  "mid3":  600},
+        {"fast":  70, "mid1": 210, "mid2": 420,  "mid3":  840},
+        {"fast": 100, "mid1": 300, "mid2": 600,  "mid3": 1200},
     ],
-    # Add more symbols & combos as needed...
+    "RELIANCE": [
+        {"fast": 220, "mid1": 440, "mid2":  800, "mid3": 1600},
+        {"fast": 240, "mid1": 480, "mid2":  960, "mid3": 1920},  # current best
+        {"fast": 260, "mid1": 520, "mid2": 1040, "mid3": 2080},
+    ],
 }
-
 def make_cerebro():
     """
     Build a Cerebro instance with broker settings and analyzers.
