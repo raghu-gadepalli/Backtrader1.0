@@ -21,7 +21,7 @@ from strategies.renko_ema_crossover import RenkoEMAStrategy
 
 # Renko EMA Crossover parameters per symbol
 RENKO_EMA_PARAMS = {
-    "KOTAKBANK": dict(fast_period=26, slow_period=65, renko_brick_size=0.5),
+    "KOTAKBANK": dict(fast_period=60, slow_period=180, renko_brick_size=3.0),
 }
 
 SYMBOLS = list(RENKO_EMA_PARAMS.keys())
@@ -48,6 +48,10 @@ def run_period(symbol, label, start, end):
     df.index = pd.to_datetime(df.index)
 
     cerebro = bt.Cerebro()
+    cerebro.broker.set_coc(True)                  # fill at bar close
+    cerebro.broker.setcash(500_000)               # ample cash
+    cerebro.broker.setcommission(commission=0.0002)
+
     cerebro.addanalyzer(bt.analyzers.SharpeRatio,   _name="sharpe",
                         timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")

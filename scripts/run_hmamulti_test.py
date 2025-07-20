@@ -4,6 +4,7 @@
 import os
 import sys
 import pandas as pd
+from datetime import datetime
 
 # headless plotting
 os.environ["MPLBACKEND"] = "Agg"
@@ -11,15 +12,20 @@ import matplotlib; matplotlib.use("Agg", force=True)
 
 import backtrader as bt
 
-#  project root 
+# ─── Adjust project root if needed ──────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ─── optionally dump CSV into a 'results' folder ────────────────────────────
+RESULTS_DIR = os.path.join(_ROOT, "results")
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
 from data.load_candles        import load_candles
-from strategies.hma_multitrend import HmaMultiTrendStrategy  # :contentReference[oaicite:0]{index=0}
+from strategies.hma_multitrend import HmaMultiTrendStrategy
 
-#  persymbol multiHMA parameters 
+# ——— Your HMA‑Multi parameters per symbol —————————————————————————————
 HMA_MULTI_PARAMS = {
     "AXISBANK":  dict(fast=600, mid1=760, mid2=1040, mid3=1520,
                       atr_period=14, atr_mult=0.1, adx_period=14,
@@ -56,57 +62,113 @@ HMA_MULTI_PARAMS = {
                       adx_threshold=25.0, printlog=False),
 }
 
-SYMBOLS     = list(HMA_MULTI_PARAMS.keys())
-WARMUP      = "2025-04-01"
-TRAIN_START = "2025-05-01"
-TRAIN_END   = "2025-05-31"
-TEST_START  = "2025-06-01"
-TEST_END    = "2025-06-30"
-JULY_START  = "2025-07-01"
-JULY_END    = "2025-07-14"  # first 14 days
+SYMBOLS = list(HMA_MULTI_PARAMS.keys())
 
-def run_period(symbol, start, end, params):
-    # load warmup + backtest data
-    df = load_candles(symbol, WARMUP, end)
+# Global warm‑up date (must be before any test window)
+WARMUP = "2025-04-01"
+
+# Define the windows you want to evaluate
+PERIODS = {
+    "May-2025":   ("2025-05-01", "2025-05-31"),
+    "June-2025":  ("2025-06-01", "2025-06-30"),
+    "July-2025":  ("2025-07-01", "2025-07-14"),
+}
+
+results = []
+
+def normalize_dt(ds: str, is_start: bool) -> str:
+    """Convert 'YYYY-MM-DD' → 'YYYY-MM-DD HH:MM:SS' for start/end."""
+    if len(ds) == 10:
+        return ds + (" 00:00:00" if is_start else " 23:59:59")
+    return ds
+
+def run_period(symbol: str, label: str, start_raw: str, end_raw: str):
+    params = HMA_MULTI_PARAMS[symbol]
+    start_str = normalize_dt(start_raw, True)
+    end_str   = normalize_dt(end_raw, False)
+    warm_str  = normalize_dt(WARMUP, True)
+
+    # load full history for warm‑up → end
+    df = load_candles(symbol, warm_str, end_str)
     df.index = pd.to_datetime(df.index)
 
-    cerebro = bt.Cerebro()
+    # set up Cerebro
+    cerebro = bt.Cerebro(stdstats=False)
+    cerebro.broker.set_coc(True)
+    cerebro.broker.setcash(500_000)
+    cerebro.broker.setcommission(commission=0.0002)
+
     cerebro.addanalyzer(bt.analyzers.SharpeRatio,   _name="sharpe",
-                        timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
+                        timeframe=bt.TimeFrame.Minutes,
+                        riskfreerate=0.0)
     cerebro.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")
     cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
 
-    data = bt.feeds.PandasData(dataname=df,
-                               timeframe=bt.TimeFrame.Minutes,
-                               compression=1)
+    data = bt.feeds.PandasData(
+        dataname    = df,
+        fromdate    = datetime.strptime(warm_str, "%Y-%m-%d %H:%M:%S"),
+        todate      = datetime.strptime(end_str,   "%Y-%m-%d %H:%M:%S"),
+        timeframe   = bt.TimeFrame.Minutes,
+        compression = 1,
+    )
     cerebro.adddata(data, name=symbol)
-
     cerebro.addstrategy(HmaMultiTrendStrategy, **params)
 
     strat = cerebro.run()[0]
-    sr    = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
-    dd    = strat.analyzers.drawdown.get_analysis().max.drawdown
-    tr    = strat.analyzers.trades.get_analysis()
-    won   = tr.get("won",  {}).get("total", 0)
-    lost  = tr.get("lost", {}).get("total", 0)
-    tot   = tr.get("total",{}).get("closed", 0)
-    wr    = (won / tot * 100) if tot else 0.0
 
-    p = params
-    print(f"\n--- {symbol} | {start}  {end} @ HMA_MULTI"
-          f"({p['fast']},{p['mid1']},{p['mid2']},{p['mid3']},"
-          f"atr{p['atr_period']}/{p['atr_mult']},"
-          f"adx{p['adx_period']}/{p['adx_threshold']}) ---")
-    print(f"Sharpe Ratio : {sr:.2f}")
+    # collect metrics
+    sharpe  = strat.analyzers.sharpe.get_analysis().get("sharperatio", 0.0) or 0.0
+    dd      = strat.analyzers.drawdown.get_analysis().max.drawdown
+    tr      = strat.analyzers.trades.get_analysis()
+    won     = tr.get("won",  {}).get("total", 0)
+    lost    = tr.get("lost", {}).get("total", 0)
+    tot     = tr.get("total",{}).get("closed", 0)
+    winrate = (won / tot * 100) if tot else 0.0
+
+    # compute expectancy
+    avg_w      = tr.get("won", {}).get("pnl", {}).get("average", 0.0)
+    avg_l      = tr.get("lost", {}).get("pnl", {}).get("average", 0.0)
+    expectancy = (won/tot)*avg_w + (lost/tot)*avg_l if tot else float("nan")
+
+    # print & store
+    print(f"\n--- {symbol} | {label} @ HMA_MULTI "
+          f"({params['fast']},{params['mid1']},{params['mid2']},{params['mid3']}, "
+          f"atr{params['atr_period']}/{params['atr_mult']}, "
+          f"adx{params['adx_period']}/{params['adx_threshold']}) ---")
+    print(f"Warm‑up      → {warm_str}")
+    print(f"Eval window → {start_str} to {end_str}")
+    print(f"Sharpe Ratio : {sharpe:.2f}")
     print(f"Max Drawdown : {dd:.2f}%")
     print(f"Total Trades : {tot}")
-    print(f"Win Rate     : {wr:.1f}% ({won}W/{lost}L)")
+    print(f"Win Rate     : {winrate:.1f}% ({won}W/{lost}L)")
+    print(f"Expectancy   : {expectancy:.4f}")
+
+    results.append({
+        "symbol":       symbol,
+        "period_label": label,
+        "warmup":       warm_str,
+        "start":        start_str,
+        "end":          end_str,
+        "fast":         params["fast"],
+        "mid1":         params["mid1"],
+        "mid2":         params["mid2"],
+        "mid3":         params["mid3"],
+        "atr_period":   params["atr_period"],
+        "atr_mult":     params["atr_mult"],
+        "adx_period":   params["adx_period"],
+        "adx_threshold":params["adx_threshold"],
+        "sharpe":       sharpe,
+        "drawdown":     dd,
+        "trades":       tot,
+        "win_rate":     winrate,
+        "expectancy":   expectancy,
+    })
 
 if __name__ == "__main__":
-    for symbol, params in HMA_MULTI_PARAMS.items():
-        # May
-        run_period(symbol, TRAIN_START, TRAIN_END, params)
-        # June
-        run_period(symbol, TEST_START,  TEST_END,  params)
-        # July 114
-        run_period(symbol, JULY_START, JULY_END,  params)
+    for sym in SYMBOLS:
+        for label, (s, e) in PERIODS.items():
+            run_period(sym, label, s, e)
+
+    output_file = os.path.join(RESULTS_DIR, "hma_multi_test_results.csv")
+    pd.DataFrame(results).to_csv(output_file, index=False)
+    print(f"\nWrote {output_file}")

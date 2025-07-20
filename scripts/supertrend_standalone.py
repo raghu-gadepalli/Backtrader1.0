@@ -65,7 +65,7 @@ def compute_supertrend(df, period=10, multiplier=3):
     return df
 
 if __name__ == "__main__":
-    filename = "./maruti_candles.csv"
+    filename = "./axis_candles.csv"
     df = pd.read_csv(filename)
     df['candle_time'] = pd.to_datetime(df['candle_time'], errors='coerce')
     for col in ['high', 'low', 'close']:
