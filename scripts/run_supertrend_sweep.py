@@ -29,8 +29,8 @@ WARMUP_START = "2025-04-01"
 END          = "2025-07-06"
 
 # two‑pass grid
-ST_PERIODS   = [10, 20, 30, 40, 50]       # ATR lookback
-ST_MULTS     = [2.0, 4.0, 6.0, 8.0, 10.0] # multiplier
+ST_PERIODS   = [20, 30, 40, 60]       # ATR lookback
+ST_MULTS     = [2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0] # multiplier
 DEFAULT_MULT = ST_MULTS[len(ST_MULTS)//2] # e.g. 6.0
 
 PASS1_N      = 3    # keep top 3 periods

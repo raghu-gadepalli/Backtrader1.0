@@ -13,7 +13,7 @@ from data.load_candles import load_candles
 import pandas as pd
 
 # ───────── User settings ───────────────────────────────────────────────────────
-SYMBOLS    = ['INFY', 'AXISBANK', 'ICICIBANK']
+SYMBOLS    = ['INFY', 'RELIANCE', 'ICICIBANK']
 START_DATE = "2024-12-01 00:00:00"
 END_DATE   = "2025-07-15 23:59:59"
 ATR_PERIOD = 14

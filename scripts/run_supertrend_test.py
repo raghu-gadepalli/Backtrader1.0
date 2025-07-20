@@ -27,20 +27,20 @@ from strategies.supertrend import ST
 
 # ——— Your SuperTrend parameters per symbol —————————————————————————————
 ST_PARAMS = {
-    "AXISBANK":   dict(period=30, mult=12.0),
-    "HDFCBANK":   dict(period=30, mult=12.0),
-    "ICICIBANK":  dict(period=30, mult=12.0),
-    "INFY":       dict(period=30, mult=12.0),
-    "KOTAKBANK":  dict(period=30, mult=12.0),
-    "MARUTI":     dict(period=30, mult=12.0),
-    "NIFTY 50":   dict(period=30, mult=12.0),
-    "NIFTY BANK": dict(period=30, mult=12.0),
-    "RELIANCE":   dict(period=30, mult=12.0),
-    "SBIN":       dict(period=30, mult=12.0),
-    "SUNPHARMA":  dict(period=30, mult=12.0),
-    "TATAMOTORS": dict(period=30, mult=12.0),
-    "TCS":        dict(period=30, mult=6.0),
-    "TECHM":      dict(period=30, mult=12.0),
+    # "AXISBANK":   dict(period=30, mult=12.0),
+    # "HDFCBANK":   dict(period=30, mult=12.0),
+    "ICICIBANK":  dict(period=60, mult=3.0),
+    "INFY":       dict(period=60, mult=3.0),
+    # "KOTAKBANK":  dict(period=30, mult=12.0),
+    # "MARUTI":     dict(period=30, mult=12.0),
+    # "NIFTY 50":   dict(period=30, mult=12.0),
+    # "NIFTY BANK": dict(period=30, mult=12.0),
+    "RELIANCE":   dict(period=60, mult=3.0),
+    # "SBIN":       dict(period=30, mult=12.0),
+    # "SUNPHARMA":  dict(period=30, mult=12.0),
+    # "TATAMOTORS": dict(period=30, mult=12.0),
+    # "TCS":        dict(period=30, mult=6.0),
+    # "TECHM":      dict(period=30, mult=12.0),
 }
 
 SYMBOLS = list(ST_PARAMS.keys())
