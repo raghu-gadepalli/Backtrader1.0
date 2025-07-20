@@ -2,17 +2,16 @@
 """
 scripts/run_supertrend_sweep.py
 
-Two‑pass coordinate descent for SuperTrend across multiple symbols:
-1) Sweep ATR period (with default mult) → pick top periods
-2) Drill multiplier on those periods     → pick final survivors
+Two‑pass coordinate descent for SuperTrend over multiple symbols:
+  1) Sweep ATR period (with default mult) → pick top periods
+  2) Drill multiplier on those periods    → pick final survivors
 
 Writes two merged CSVs into results/:
-  - supertrend_opt_all_stages.csv   (stage 1 + stage 2 rows, with symbol)
-  - supertrend_opt_final.csv        (final survivors)
+  - supertrend_opt_all_stages.csv   (all pass 1/2 rows, with expectancy)
+  - supertrend_opt_final.csv        (top PASS2_N combos per symbol)
 """
 
 import os, sys, csv
-from datetime import datetime
 
 # ─── project root ────────────────────────────────────────────────────────────
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -25,39 +24,36 @@ from strategies.supertrend import ST
 
 # ─── USER PARAMETERS ─────────────────────────────────────────────────────────
 SYMBOLS      = ["ICICIBANK", "INFY", "RELIANCE"]
-WARMUP_START = "2025-04-01"
-END          = "2025-07-06"
+WARMUP_START = "2025-06-25"
+END          = "2025-07-17"
 
-# two‑pass grid
-ST_PERIODS   = [20, 30, 40, 60]       # ATR lookback
-ST_MULTS     = [2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0] # multiplier
-DEFAULT_MULT = ST_MULTS[len(ST_MULTS)//2] # e.g. 6.0
+# two‑pass grid: ATR periods and multipliers
+ST_PERIODS   = [20, 30, 40, 60]          # your chosen periods
+ST_MULTS     = [2.0, 3.0, 4.0, 5.0, 6.0] # suggested multipliers; adjust as needed
+DEFAULT_MULT = ST_MULTS[len(ST_MULTS)//2]  # e.g. 4.0
 
-PASS1_N      = 3    # keep top 3 periods
-PASS2_N      = 3    # keep top 3 multipliers
-DISTINCT1    = True # unique period in pass1
-DISTINCT2    = True # unique mult   in pass2
+PASS1_N   = 3    # survivors to drill multiplier
+PASS2_N   = 3    # final survivors to output
+DISTINCT1 = True # unique period in pass1
+DISTINCT2 = True # unique mult   in pass2
 
 STARTING_CASH   = 500_000
 COMMISSION_RATE = 0.0002
 
 def make_cerebro():
-    cerebro = bt.Cerebro(stdstats=False)
-    cerebro.broker.set_coc(True)
-    cerebro.broker.setcash(STARTING_CASH)
-    cerebro.broker.setcommission(commission=COMMISSION_RATE)
-    cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
-                        timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
-    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
-    return cerebro
+    c = bt.Cerebro(stdstats=False)
+    c.broker.set_coc(True)
+    c.broker.setcash(STARTING_CASH)
+    c.broker.setcommission(commission=COMMISSION_RATE)
+    c.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
+                  timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
+    c.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
+    return c
 
 def backtest(symbol, period, mult):
-    """
-    Run one SuperTrend backtest; return (sharpe, expectancy, total_trades, win_rate%).
-    """
     cerebro = make_cerebro()
     df      = load_candles(symbol, WARMUP_START, END)
-    df.index = df.index if hasattr(df, 'index') else df  # ensure datetime index
+    df.index = df.index  # ensure datetime index
 
     data = bt.feeds.PandasData(
         dataname    = df,
@@ -85,6 +81,7 @@ def backtest(symbol, period, mult):
     return sr, expc, tot, wr
 
 def sort_key(r):
+    # primary: sharpe desc, secondary: expectancy desc, tertiary: trades asc
     return (-r["sharpe"], -r["expectancy"], r["trades"])
 
 if __name__ == "__main__":
@@ -115,11 +112,10 @@ if __name__ == "__main__":
     for symbol in SYMBOLS:
         print(f"\n====== OPTIMIZING {symbol} ======")
 
-        # PASS 1: sweep ATR periods at DEFAULT_MULT
-        p1 = []
-        total = len(ST_PERIODS)
+        # PASS 1: sweep ATR periods with DEFAULT_MULT
+        p1_results = []
         for i, period in enumerate(ST_PERIODS, 1):
-            print(f"[{symbol}] P1 {i}/{total} → period={period}, mult={DEFAULT_MULT}")
+            print(f"[{symbol}] PASS 1 {i}/{len(ST_PERIODS)} → period={period}, mult={DEFAULT_MULT}")
             sr, expc, tot, wr = backtest(symbol, period, DEFAULT_MULT)
             rec = {
                 "symbol":     symbol,
@@ -136,12 +132,12 @@ if __name__ == "__main__":
                 f"{sr:.6f}", f"{expc:.6f}", rec["trades"], f"{wr:.2f}"
             ])
             all_file.flush()
-            p1.append(rec)
+            p1_results.append(rec)
 
         # pick top PASS1_N periods
-        p1.sort(key=sort_key)
+        p1_results.sort(key=sort_key)
         heads1, seen1 = [], set()
-        for r in p1:
+        for r in p1_results:
             if DISTINCT1 and r["period"] in seen1:
                 continue
             heads1.append(r)
@@ -149,11 +145,11 @@ if __name__ == "__main__":
             if len(heads1) >= PASS1_N:
                 break
 
-        # PASS 2: for each top period, sweep multipliers
-        p2 = []
+        # PASS 2: drill multipliers on survivors
+        p2_results = []
         for idx, h in enumerate(heads1, 1):
             period = h["period"]
-            print(f"[{symbol}] P2 #{idx}/{len(heads1)} → drilling mult on period={period}")
+            print(f"[{symbol}] PASS 2 #{idx}/{len(heads1)} → drilling mult on period={period}")
             for mult in ST_MULTS:
                 print(f"    mult={mult}")
                 sr, expc, tot, wr = backtest(symbol, period, mult)
@@ -172,12 +168,12 @@ if __name__ == "__main__":
                     f"{sr:.6f}", f"{expc:.6f}", rec["trades"], f"{wr:.2f}"
                 ])
                 all_file.flush()
-                p2.append(rec)
+                p2_results.append(rec)
 
-        # pick top PASS2_N (final survivors)
-        p2.sort(key=sort_key)
+        # pick top PASS2_N final survivors
+        p2_results.sort(key=sort_key)
         heads2, seen2 = [], set()
-        for r in p2:
+        for r in p2_results:
             if DISTINCT2 and r["mult"] in seen2:
                 continue
             heads2.append(r)
