@@ -23,8 +23,8 @@ from strategies.supertrend import ST
 # ─── SETTINGS ────────────────────────────────────────────────────────────────
 ST_PARAMS     = {
     "ICICIBANK": dict(period=60, mult=9.0),
-    # "INFY":      dict(period=60, mult=14.0),
-    # "RELIANCE":  dict(period=60, mult=7.6),
+    "INFY":      dict(period=60, mult=14.0),
+    "RELIANCE":  dict(period=60, mult=7.6),
 }
 BURN_IN_DATE  = "2025-02-15"
 WARMUP_FACTOR = 10

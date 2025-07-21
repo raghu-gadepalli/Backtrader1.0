@@ -33,89 +33,54 @@ COMMISSION     = 0.0002
 WARMUP_FACTOR  = 10             # burn‑in bars = period * this factor
 
 # ─── MANUAL COMBINATIONS PER SYMBOL ──────────────────────────────────────────
+
+# auto‑generate period=60, mult from 1.0 to 16.8 inclusive in steps of 0.2
+multipliers = [x / 5 for x in range(6, 85)]  # since 1.2*5=6 and 16.8*5=84
+
 COMBINATIONS = {
-    "RELIANCE": [
-        {"period": 60, "mult": 1.0},
-        {"period": 60, "mult": 1.2},
-        {"period": 60, "mult": 1.4},
-        {"period": 60, "mult": 1.6},
-        {"period": 60, "mult": 1.8},
-        {"period": 60, "mult": 2.0},
-        {"period": 60, "mult": 2.2},
-        {"period": 60, "mult": 2.4},
-        {"period": 60, "mult": 2.6},
-        {"period": 60, "mult": 2.8},
-        {"period": 60, "mult": 3.0},
-        {"period": 60, "mult": 3.2},
-        {"period": 60, "mult": 3.4},
-        {"period": 60, "mult": 3.6},
-        {"period": 60, "mult": 3.8},
-        {"period": 60, "mult": 4.0},
-        {"period": 60, "mult": 4.2},
-        {"period": 60, "mult": 4.4},
-        {"period": 60, "mult": 4.6},
-        {"period": 60, "mult": 4.8},
-        {"period": 60, "mult": 5.0},
-        {"period": 60, "mult": 5.2},
-        {"period": 60, "mult": 5.4},
-        {"period": 60, "mult": 5.6},
-        {"period": 60, "mult": 5.8},
-        {"period": 60, "mult": 6.0},
-        {"period": 60, "mult": 6.2},
-        {"period": 60, "mult": 6.4},
-        {"period": 60, "mult": 6.6},
-        {"period": 60, "mult": 6.8},
-        {"period": 60, "mult": 7.0},
-        {"period": 60, "mult": 7.2},
-        {"period": 60, "mult": 7.4},
-        {"period": 60, "mult": 7.6},
-        {"period": 60, "mult": 7.8},
-        {"period": 60, "mult": 8.0},
-        {"period": 60, "mult": 8.2},
-        {"period": 60, "mult": 8.4},
-        {"period": 60, "mult": 8.6},
-        {"period": 60, "mult": 8.8},
-        {"period": 60, "mult": 9.0},
-        {"period": 60, "mult": 9.0},
-        {"period": 60, "mult": 9.2},
-        {"period": 60, "mult": 9.4},
-        {"period": 60, "mult": 9.6},
-        {"period": 60, "mult": 9.8},
-        {"period": 60, "mult": 10.0},
-        {"period": 60, "mult": 10.2},
-        {"period": 60, "mult": 10.4},
-        {"period": 60, "mult": 10.6},
-        {"period": 60, "mult": 10.8},
-        {"period": 60, "mult": 11.0},
-        {"period": 60, "mult": 11.2},
-        {"period": 60, "mult": 11.4},
-        {"period": 60, "mult": 11.6},
-        {"period": 60, "mult": 11.8},
-        {"period": 60, "mult": 12.0},
-        {"period": 60, "mult": 12.2},
-        {"period": 60, "mult": 12.4},
-        {"period": 60, "mult": 12.6},
-        {"period": 60, "mult": 12.8},
-        {"period": 60, "mult": 13.0},
-        {"period": 60, "mult": 13.2},
-        {"period": 60, "mult": 13.4},
-        {"period": 60, "mult": 13.6},
-        {"period": 60, "mult": 13.8},
-        {"period": 60, "mult": 14.0},
-        {"period": 60, "mult": 14.2},
-        {"period": 60, "mult": 14.4},
-        {"period": 60, "mult": 14.6},
-        {"period": 60, "mult": 14.8},
-        {"period": 60, "mult": 15.0},
-        {"period": 60, "mult": 15.2},
-        {"period": 60, "mult": 15.4},
-        {"period": 60, "mult": 15.6},
-        {"period": 60, "mult": 15.8},
-        {"period": 60, "mult": 16.0},
-        {"period": 60, "mult": 16.2},
-        {"period": 60, "mult": 16.4},
-        {"period": 60, "mult": 16.6},
-        {"period": 60, "mult": 16.8},
+    "AXISBANK": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "HDFCBANK": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "KOTAKBANK": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "MARUTI": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "NIFTY 50": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "NIFTY BANK": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "SBIN": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "SUNPHARMA": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "TATAMOTORS": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "TCS": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "TECHM": [
+        {"period": 60, "mult": m}
+        for m in multipliers
     ],
     # add more symbols here if desired...
 }

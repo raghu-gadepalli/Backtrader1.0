@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-def compute_supertrend(df, period=10, multiplier=3):
+def compute_supertrend(df, period=60, multiplier=9):
     df = df.copy()
     hl2 = (df['high'] + df['low']) / 2
     df['tr'] = np.maximum(
@@ -65,14 +65,14 @@ def compute_supertrend(df, period=10, multiplier=3):
     return df
 
 if __name__ == "__main__":
-    filename = "./axis_candles.csv"
+    filename = "./icici_candles.csv"
     df = pd.read_csv(filename)
     df['candle_time'] = pd.to_datetime(df['candle_time'], errors='coerce')
     for col in ['high', 'low', 'close']:
         df[col] = pd.to_numeric(df[col], errors='coerce')
     df = df.dropna(subset=['high', 'low', 'close'])
     st = compute_supertrend(df, period=10, multiplier=3)
-    date_filter = "2025-07-17"
+    date_filter = "2025-07-04"
     mask = st['candle_time'].dt.strftime("%Y-%m-%d") == date_filter
     today = st[mask].copy()
     print(f"Filtered to {len(today)} rows for {date_filter}\n")
