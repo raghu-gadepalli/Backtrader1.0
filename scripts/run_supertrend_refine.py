@@ -34,7 +34,7 @@ WARMUP_FACTOR  = 10             # burn‑in bars = period * this factor
 
 # ─── MANUAL COMBINATIONS PER SYMBOL ──────────────────────────────────────────
 COMBINATIONS = {
-    "INFY": [
+    "RELIANCE": [
         {"period": 60, "mult": 1.0},
         {"period": 60, "mult": 1.2},
         {"period": 60, "mult": 1.4},
