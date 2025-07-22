@@ -22,9 +22,14 @@ from strategies.supertrend import ST
 
 # ─── SETTINGS ────────────────────────────────────────────────────────────────
 ST_PARAMS     = {
-    "ICICIBANK": dict(period=60, mult=9.0),
-    "INFY":      dict(period=60, mult=14.0),
-    "RELIANCE":  dict(period=60, mult=7.6),
+    "ICICIBANK":    dict(period=60, mult=9.0),
+    "INFY":         dict(period=60, mult=14.0),
+    "RELIANCE":     dict(period=60, mult=14.6),
+    "HDFCBANK":     dict(period=60, mult=11.0),
+    "KOTAKBANK":    dict(period=60, mult=12.4),
+    "SBIN":         dict(period=60, mult=12.6),
+    "TATAMOTORS":   dict(period=60, mult=15.8),
+    "NIFTY 50":     dict(period=60, mult=15.8),
 }
 BURN_IN_DATE  = "2025-02-15"
 WARMUP_FACTOR = 10
