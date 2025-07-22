@@ -38,42 +38,42 @@ WARMUP_FACTOR  = 10             # burn‑in bars = period * this factor
 multipliers = [x / 5 for x in range(6, 85)]  # since 1.2*5=6 and 16.8*5=84
 
 COMBINATIONS = {
-    "AXISBANK": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
-    "HDFCBANK": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
-    "KOTAKBANK": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
-    "MARUTI": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
-    "NIFTY 50": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
-    "NIFTY BANK": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
-    "SBIN": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
-    "SUNPHARMA": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
-    "TATAMOTORS": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
+    # "AXISBANK": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
+    # "HDFCBANK": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
+    # "KOTAKBANK": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
+    # "MARUTI": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
+    # "NIFTY 50": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
+    # "NIFTY BANK": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
+    # "SBIN": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
+    # "SUNPHARMA": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
+    # "TATAMOTORS": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
     "TCS": [
         {"period": 60, "mult": m}
         for m in multipliers
