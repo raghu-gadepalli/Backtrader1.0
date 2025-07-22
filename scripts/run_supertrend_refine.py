@@ -38,6 +38,18 @@ WARMUP_FACTOR  = 10             # burn‑in bars = period * this factor
 multipliers = [x / 5 for x in range(6, 85)]  # since 1.2*5=6 and 16.8*5=84
 
 COMBINATIONS = {
+    "ICICIBANK": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "INFY": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
+    "RELIANCE": [
+        {"period": 60, "mult": m}
+        for m in multipliers
+    ],
     # "AXISBANK": [
     #     {"period": 60, "mult": m}
     #     for m in multipliers
@@ -74,14 +86,14 @@ COMBINATIONS = {
     #     {"period": 60, "mult": m}
     #     for m in multipliers
     # ],
-    "TCS": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
-    "TECHM": [
-        {"period": 60, "mult": m}
-        for m in multipliers
-    ],
+    # "TCS": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
+    # "TECHM": [
+    #     {"period": 60, "mult": m}
+    #     for m in multipliers
+    # ],
     # add more symbols here if desired...
 }
 
