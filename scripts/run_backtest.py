@@ -1,224 +1,233 @@
 #!/usr/bin/env python3
-"""
-scripts/run_backtest.py
-
-Backtest SuperTrend for July 2025 with 1% SL & 0.5% TP,
-dumping a single CSV of all closed trades (with PnL) plus a summary CSV.
-
-Warm‑up/test split:
-  • Warm‑up = last period*WARMUP_FACTOR bars before TEST_START
-  • Test    = bars from TEST_START → END
-"""
+# scripts/run_backtest.py
+#
+# Single strategy backtest (no sweep) with fixed BURN_IN_DATE warmup.
+# - Feed warmup+test to Cerebro
+# - Strategy ignores bars before the period start (ignore_before)
+# - Filter TradeList rows to the slice
+# - Recompute trades/win%/expectancy from filtered trades
+# - Write summary & trade CSVs
 
 import os
 import sys
-import pandas as pd
 from datetime import datetime
+import pandas as pd
+import backtrader as bt
 
-# ─── project root ────────────────────────────────────────────────────────────
+#  Project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-
-import backtrader as bt
-from data.load_candles   import load_candles
-from strategies.supertrend import ST as STBase
-
-# ─── STRATEGY WITH INTERNAL ORDER LOG ────────────────────────────────────────
-class STWithSLTP(STBase):
-    """
-    SuperTrend + fixed SL/TP + internal order logging.
-    Orders are paired after the run to compute trades + PnL.
-    """
-    def __init__(self, *args, **kwargs):
-        self.stop_loss_perc   = kwargs.pop("stop_loss_perc")
-        self.take_profit_perc = kwargs.pop("take_profit_perc")
-        super().__init__(*args, **kwargs)
-        self._entry_price = None
-        # collect every Completed order
-        self.order_log = []
-
-    def notify_order(self, order):
-        super().notify_order(order)
-        if order.status == order.Completed:
-            dt    = self.data.datetime.datetime(0)
-            price = order.executed.price
-            size  = order.executed.size
-            side  = "BUY" if order.isbuy() else "SELL"
-            self.order_log.append({
-                "symbol": self.data._name,
-                "dt":      dt.strftime("%Y-%m-%d %H:%M:%S"),
-                "side":    side,
-                "price":   price,
-                "size":    size,
-            })
-            # track for SL/TP
-            self._entry_price = price
-
-    def next(self):
-        super().next()
-        if not self.position or self._entry_price is None:
-            return
-
-        price = self.data.close[0]
-        size  = self.position.size
-
-        # LONG logic
-        if size > 0:
-            if price <= self._entry_price * (1 - self.stop_loss_perc):
-                self.close(); self._entry_price = None
-            elif price >= self._entry_price * (1 + self.take_profit_perc):
-                self.close(); self._entry_price = None
-
-        # SHORT logic
-        elif size < 0:
-            if price >= self._entry_price * (1 + self.stop_loss_perc):
-                self.close(); self._entry_price = None
-            elif price <= self._entry_price * (1 - self.take_profit_perc):
-                self.close(); self._entry_price = None
-
-
-# ─── BACKTEST PARAMETERS ─────────────────────────────────────────────────────
-ST_PARAMS = {
-    "ICICIBANK": dict(period=60, mult=9.0),
-    "INFY":      dict(period=60, mult=14.0),
-    "RELIANCE":  dict(period=60, mult=7.6),
-}
-
-STOP_LOSS_PCT   = 0.01    # 1%
-TAKE_PROFIT_PCT = 0.0025   # 0.5%
-
-BURN_IN_DATE   = "2025-02-15"
-TEST_START     = "2025-07-01"
-END            = "2025-07-17"
-WARMUP_FACTOR  = 10      # bars = period * this
-
-STARTING_CASH = 500_000
-COMMISSION    = 0.0002
-
-# ─── OUTPUT DIRECTORY ─────────────────────────────────────────────────────────
-_ROOT       = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
+#  Imports 
+from data.load_candles import load_candles
+from strategies.hma_multitrend import HmaMultiTrendStrategy
+from analyzers.trade_list import TradeList as TradeListAnalyzer  # required
 
-# ─── CEREBRO SETUP ────────────────────────────────────────────────────────────
+#  GLOBAL CONFIG 
+BURN_IN_DATE  = "2024-05-01 00:00:00"
+STARTING_CASH = 500_000
+COMMISSION    = 0.0002
+
+SYMBOLS = ["TECHM"]
+PERIODS = [
+    ("Jul-25", "2025-07-01 09:15:00", "2025-07-22 15:30:00"),
+]
+
+# ---- ONE param set (tweak here) --------------------------------------------
+PARAMS = dict(
+    # fast=120,
+    # mid1=320,
+    # mid2=1200,
+    # mid3=3800,
+
+    fast=80,
+    mid1=220,
+    mid2=560,
+    mid3=1520,
+
+    adx_threshold=25.0,
+    adx_period=14,
+    atr_period=14,
+    atr_mult=1.0,          # make sure this matches your strat default if used
+
+    # Exit controls
+    use_sl_tg=False,
+    use_trailing=False,
+    use_signal_exit=True,
+    reentry_cooldown=0,
+    ignore_before=None,    # will be overridden per period below
+
+    # Legacy SL/TG fields (kept for CSV/logging; strat will ignore when OFF)
+    sl_mode="OFF",
+    sl_value=0.0,
+    tg_mode="OFF",
+    tg1=0.0,
+    tg2=0.0,
+    tg3=0.0,
+
+    trail_type="NONE",
+    trail_params=""
+)
+
+#  Helpers 
 def make_cerebro():
-    cb = bt.Cerebro(stdstats=False)
-    cb.broker.set_coc(True)
-    cb.broker.setcash(STARTING_CASH)
-    cb.broker.setcommission(commission=COMMISSION)
-    cb.addanalyzer(bt.analyzers.SharpeRatio,   _name="sharpe",
-                   timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
-    cb.addanalyzer(bt.analyzers.DrawDown,      _name="drawdown")
-    cb.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
-    return cb
+    c = bt.Cerebro(stdstats=False)
+    c.broker.set_coc(True)
+    c.broker.setcash(STARTING_CASH)
+    c.broker.setcommission(commission=COMMISSION)
+    c.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
+                  timeframe=bt.TimeFrame.Days, riskfreerate=0.0)
+    c.addanalyzer(bt.analyzers.DrawDown,    _name="ddown")
+    c.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
+    c.addanalyzer(TradeListAnalyzer, _name="tlist")
+    return c
 
+def pandas_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    high, low, close = df["high"], df["low"], df["close"]
+    prev_close = close.shift(1)
+    tr = pd.concat([(high-low).abs(),
+                    (high-prev_close).abs(),
+                    (low-prev_close).abs()], axis=1).max(axis=1)
+    return tr.rolling(period, min_periods=period).mean()
 
-# ─── MAIN BACKTEST LOOP ──────────────────────────────────────────────────────
-all_trades = []
-summary    = []
+def safe_get(analyzers, name, field):
+    try:
+        val = getattr(analyzers.getbyname(name).get_analysis(), field)
+        if isinstance(val, (list, tuple)) and val:
+            return float(val[0])
+        return float(val)
+    except Exception:
+        return None
 
-for symbol, params in ST_PARAMS.items():
-    period, mult = params["period"], params["mult"]
-    print(f"\n=== {symbol} | ST({period},{mult}) + SL {STOP_LOSS_PCT*100:.1f}% / TP {TAKE_PROFIT_PCT*100:.1f}% ===")
+def filter_for_strategy(params, strat_cls):
+    allowed = set(strat_cls.params._getkeys())
+    return {k: v for k, v in params.items() if k in allowed}
 
-    # 1) load full history
-    df_all = load_candles(symbol, BURN_IN_DATE, END)
+def recompute_trade_stats(trades):
+    if not trades:
+        return 0, 0.0, 0.0
+    total = len(trades)
+    pnls = [t.get("pnl", 0.0) for t in trades]
+    wins = [p for p in pnls if p > 0]
+    losses = [p for p in pnls if p <= 0]
+    win_cnt = len(wins)
+    win_rate = (win_cnt / total * 100.0) if total else 0.0
+    avg_w = sum(wins)/win_cnt if win_cnt else 0.0
+    loss_cnt = len(losses)
+    avg_l = sum(losses)/loss_cnt if loss_cnt else 0.0
+    expectancy = (avg_w * (win_cnt/total)) + (avg_l * (loss_cnt/total)) if total else 0.0
+    return total, win_rate, expectancy
+
+#  Core run 
+def run_period(symbol, label, start_raw, end_raw, base_params):
+    # Load warmup + test
+    df_all = load_candles(symbol, BURN_IN_DATE, end_raw)
+    if not hasattr(df_all, "index"):
+        raise TypeError("load_candles returned non-DataFrame? Check import.")
     df_all.index = pd.to_datetime(df_all.index)
 
-    # 2) split warm‑up vs test
-    ts_dt       = datetime.strptime(TEST_START, "%Y-%m-%d")
-    df_warm_all = df_all[df_all.index < ts_dt]
-    df_test     = df_all[df_all.index >= ts_dt]
+    ts_start = pd.to_datetime(start_raw)
+    ts_end   = pd.to_datetime(end_raw)
 
-    needed = period * WARMUP_FACTOR
-    if len(df_warm_all) < needed:
-        print(f"❗ Not enough warm‑up for {symbol} ({len(df_warm_all)} < {needed}), aborting.")
-        sys.exit(1)
+    df_test = df_all[(df_all.index >= ts_start) & (df_all.index <= ts_end)].copy()
+    if df_test.empty:
+        print(f"[WARN] {symbol}/{label}: empty test slice.")
+        return None, []
 
-    df_warm = df_warm_all.tail(needed)
-    df      = pd.concat([df_warm, df_test])
+    atr_mean = float(pandas_atr(df_test, base_params.get("atr_period", 14)).mean())
 
-    # 3) run Cerebro
     cerebro = make_cerebro()
-    data = bt.feeds.PandasData(dataname=df,
-                               timeframe=bt.TimeFrame.Minutes,
-                               compression=1)
-    cerebro.adddata(data, name=symbol)
-    cerebro.addstrategy(
-        STWithSLTP,
-        st_period=period,
-        st_mult=mult,
-        stop_loss_perc=STOP_LOSS_PCT,
-        take_profit_perc=TAKE_PROFIT_PCT,
-    )
+    cerebro.adddata(bt.feeds.PandasData(dataname=df_all), name=symbol)
+
+    # Add ignore_before to prevent trades in warm-up inside strat
+    params = dict(base_params)  # copy
+    params["ignore_before"] = start_raw
+
+    sp = filter_for_strategy(params, HmaMultiTrendStrategy)
+    extra = set(params) - set(sp)
+    if extra:
+        print(f"[INFO] Ignoring params for strategy: {extra}")
+
+    strat = cerebro.addstrategy(HmaMultiTrendStrategy, **sp)
     strat = cerebro.run()[0]
 
-    # 4) summary metrics
-    sharpe = strat.analyzers.sharpe.get_analysis().get("sharperatio",0.0) or 0.0
-    dd     = strat.analyzers.drawdown.get_analysis().max.drawdown
-    tr     = strat.analyzers.trades.get_analysis()
-    won    = tr.get("won",{}).get("total",0)
-    lost   = tr.get("lost",{}).get("total",0)
-    tot    = tr.get("total",{}).get("closed",0)
-    winr   = (won/tot*100) if tot else 0.0
-    avg_w  = tr.get("won",{}).get("pnl",{}).get("average",0.0)
-    avg_l  = tr.get("lost",{}).get("pnl",{}).get("average",0.0)
-    expc   = (won/tot)*avg_w + (lost/tot)*avg_l if tot else float("nan")
+    sharpe = safe_get(strat.analyzers, "sharpe", "sharperatio")
+    dd_pct = safe_get(strat.analyzers, "ddown",  "maxdrawdown") or 0.0
 
-    print(f"Sharpe: {sharpe:.2f}, Drawdown: {dd:.2f}%, "
-          f"Trades: {tot}, Win%: {winr:.1f}%, Exp: {expc:.4f}")
+    # Filter trades to slice
+    trade_rows = []
+    for rec in strat.analyzers.tlist.get_analysis():
+        dt_in = pd.to_datetime(rec["dt_in"])
+        if ts_start <= dt_in <= ts_end:
+            rec.update({
+                "symbol": symbol,
+                "period_label": label,
+                "atr_mean": atr_mean,
+                **{k: params.get(k) for k in (
+                    "fast","mid1","mid2","mid3",
+                    "sl_mode","sl_value","tg_mode","tg1","tg2","tg3",
+                    "trail_type","use_sl_tg","use_trailing","use_signal_exit",
+                    "reentry_cooldown"
+                ) if k in params}
+            })
+            trade_rows.append(rec)
 
-    summary.append({
-        "symbol":     symbol,
-        "sharpe":     sharpe,
-        "drawdown":   dd,
-        "trades":     tot,
-        "win_rate":   winr,
-        "expectancy": expc,
-    })
+    total_trades, win_rate, expectancy = recompute_trade_stats(trade_rows)
 
-    # 5) pair orders into closed trades
-    trades = []
-    open_o = None
-    for o in strat.order_log:
-        if open_o is None:
-            open_o = o
-        else:
-            # match opposite sides
-            if (open_o["side"] == "BUY" and o["side"] == "SELL") or \
-               (open_o["side"] == "SELL" and o["side"] == "BUY"):
-                # compute PnL according to direction
-                if open_o["side"] == "BUY":
-                    pnl = (o["price"] - open_o["price"]) * open_o["size"]
-                else:
-                    pnl = (open_o["price"] - o["price"]) * abs(open_o["size"])
-                trades.append({
-                    "symbol":      symbol,
-                    "entry_dt":    open_o["dt"],
-                    "entry_price": open_o["price"],
-                    "exit_dt":     o["dt"],
-                    "exit_price":  o["price"],
-                    "size":        open_o["size"],
-                    "pnl":         pnl,
-                })
-                open_o = None
-            else:
-                # unexpected, skip
-                open_o = o
+    summary = dict(
+        symbol=symbol, period_label=label,
+        atr_mean=atr_mean,
+        sharpe=sharpe if sharpe is not None else float("-inf"),
+        drawdown=dd_pct/100.0,
+        trades=total_trades,
+        win_rate=win_rate,
+        expectancy=expectancy,
+        **params
+    )
+    return summary, trade_rows
 
-    all_trades.extend(trades)
+#  Main 
+def main():
+    summaries = []
+    trades_all = []
 
-# 6) write trades CSV
-df_trades  = pd.DataFrame(all_trades)
-trades_out = os.path.join(RESULTS_DIR, "backtest_trades.csv")
-df_trades.to_csv(trades_out, index=False)
-print(f"\nWrote all trades → {trades_out}")
+    for symbol in SYMBOLS:
+        for (label, start_raw, end_raw) in PERIODS:
+            s, t = run_period(symbol, label, start_raw, end_raw, PARAMS)
+            if s:
+                summaries.append(s)
+                trades_all.extend(t)
 
-# 7) write summary CSV
-df_sum      = pd.DataFrame(summary)
-summary_out = os.path.join(RESULTS_DIR, "backtest_summary.csv")
-df_sum.to_csv(summary_out, index=False)
-print(f"Wrote summary  → {summary_out}")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    sum_path   = os.path.join(RESULTS_DIR, f"backtest_summary_{ts}.csv")
+    trade_path = os.path.join(RESULTS_DIR, f"backtest_trades_{ts}.csv")
+
+    pd.DataFrame(summaries).to_csv(sum_path, index=False)
+
+    if trades_all:
+        df_tr = pd.DataFrame(trades_all)
+        wanted = [
+            "dt_in","dt_out","price_in","price_out","size","side",
+            "pnl","pnl_comm","barlen","tradeid",
+            "atr_entry","atr_pct","mae_abs","mae_pct",
+            "mfe_abs","mfe_pct","ret_pct",
+            "symbol","period_label",
+            "fast","mid1","mid2","mid3",
+            "sl_mode","sl_value","tg_mode","tg1","tg2","tg3","trail_type",
+            "use_sl_tg","use_trailing","use_signal_exit","reentry_cooldown",
+            "atr_mean"
+        ]
+        cols = [c for c in wanted if c in df_tr.columns]
+        df_tr[cols].to_csv(trade_path, index=False)
+    else:
+        open(trade_path, "w").write("")
+
+    print(f"\nWrote {sum_path}")
+    print(f"Wrote {trade_path}")
+
+if __name__ == "__main__":
+    main()

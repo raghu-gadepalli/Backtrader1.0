@@ -7,13 +7,13 @@ import pandas as pd
 import numpy as np
 import argparse
 
-# ─── EDIT THESE IF YOUR FOLDERS DIFFER ─────────────────────────────
+#  EDIT THESE IF YOUR FOLDERS DIFFER 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]            # C:\projects\backtrader
 RESULTS_DIR  = PROJECT_ROOT / "results"
 SUMMARY_CSV  = RESULTS_DIR / "supertrend_test_results.csv"
 TRADES_CSV   = RESULTS_DIR / "supertrend_trade_results.csv"
 OUT_DIR      = RESULTS_DIR / "analysis"
-# ───────────────────────────────────────────────────────────────────
+# 
 
 def bin_volatility(df_trades: pd.DataFrame) -> pd.DataFrame:
     """Add vol_bin column using atr_pct terciles."""
@@ -92,7 +92,7 @@ def main(plot: bool):
             f.write("- `vol_bin_per_config.csv`\n")
             f.write("- `configs_positive_all_bins.csv`\n\n")
         else:
-            f.write("## 3. Volatility Bin Results\n`atr_pct` not found or empty — skipped.\n\n")
+            f.write("## 3. Volatility Bin Results\n`atr_pct` not found or empty  skipped.\n\n")
 
     # 5) Optional plots
     if plot:

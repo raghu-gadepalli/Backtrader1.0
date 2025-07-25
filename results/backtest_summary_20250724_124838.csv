@@ -1,0 +1,2 @@
+symbol,period_label,atr_mean,sharpe,drawdown,trades,win_rate,expectancy,fast,mid1,mid2,mid3,adx_threshold,adx_period,atr_period,atr_mult,use_sl_tg,use_trailing,use_signal_exit,reentry_cooldown,ignore_before,sl_mode,sl_value,tg_mode,tg1,tg2,tg3,trail_type,trail_params
+TECHM,Jul-25,1.3626762747858496,-inf,0.0,34,29.411764705882355,-3.2764705882353042,80,220,560,1520,25.0,14,14,1.0,False,False,True,0,2025-07-01 09:15:00,OFF,0.0,OFF,0.0,0.0,0.0,NONE,

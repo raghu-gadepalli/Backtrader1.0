@@ -3,21 +3,21 @@
 import os
 import sys
 
-# ─── project root setup ───────────────────────────────────────────────────────
+#  project root setup 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
-# ────────────────────────────────────────────────────────────────────────────────
+# 
 
 from data.load_candles import load_candles
 import pandas as pd
 
-# ───────── User settings ───────────────────────────────────────────────────────
+#  User settings 
 SYMBOLS    = ['INFY', 'RELIANCE', 'ICICIBANK']
 START_DATE = "2024-12-01 00:00:00"
 END_DATE   = "2025-07-15 23:59:59"
 ATR_PERIOD = 14
-# ────────────────────────────────────────────────────────────────────────────────
+# 
 
 def compute_tr(df):
     prev = df['close'].shift(1)
@@ -44,7 +44,7 @@ def main():
         tr      = compute_tr(df)
         atr14   = tr.rolling(ATR_PERIOD).mean().dropna()
 
-        # 3) compute ATR% (ATR14 / rolling‑median price)
+        # 3) compute ATR% (ATR14 / rollingmedian price)
         med14   = df['close'].rolling(ATR_PERIOD).median().loc[atr14.index]
         atr_pct = (atr14 / med14 * 100).dropna()
 
@@ -60,7 +60,7 @@ def main():
 
     # 5) show results
     df_out = pd.DataFrame(rows).set_index('symbol')
-    print("\nATR(14) & ATR%14 summary (Dec 1 → Jul 15):\n")
+    print("\nATR(14) & ATR%14 summary (Dec1Jul15):\n")
     print(df_out.to_string())
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ os.environ["MPLBACKEND"] = "Agg"
 import matplotlib
 matplotlib.use("Agg", force=True)
 
-# ─── project root ───────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -19,13 +19,13 @@ if _ROOT not in sys.path:
 from data.load_candles import load_candles
 from strategies.adaptive_supertrend import STAdaptive
 
-# ─── symbols & adaptive‐ST grid ─────────────────────────────────────────────────
+#  symbols & adaptiveST grid 
 SYMBOLS       = ["HDFCBANK"]
 ST_PERIOD     = 240
 BASE_MULTS    = [1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 VOL_LOOKBACKS = [120, 240, 480]
 
-# ─── test windows (each with its own warm‑up) ─────────────────────────────────────
+#  test windows (each with its own warmup) 
 WINDOWS = [
     {"label": "Jan-Jun",  "warm": "2024-12-01", "start": "2025-01-01", "end": "2025-06-30"},
     {"label": "Jan-Feb",  "warm": "2025-01-01", "start": "2025-02-01", "end": "2025-02-28"},

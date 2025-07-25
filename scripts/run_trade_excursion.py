@@ -2,12 +2,12 @@
 """
 scripts/run_trade_excursion.py
 
-Run SuperTrend for July 2025 (no SL/TP) and for each closed trade log:
-  • entry_dt, entry_price
-  • exit_dt, exit_price
-  • max_price (highest high during the trade)
-  • min_price (lowest low during the trade)
-  • pnl
+Run SuperTrend for July2025 (no SL/TP) and for each closed trade log:
+   entry_dt, entry_price
+   exit_dt, exit_price
+   max_price (highest high during the trade)
+   min_price (lowest low during the trade)
+   pnl
 
 Outputs results/trade_excursions.csv for SL/TP analysis.
 """
@@ -17,7 +17,7 @@ import sys
 import pandas as pd
 from datetime import datetime
 
-# ─── project root ────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -30,7 +30,7 @@ import backtrader as bt
 from data.load_candles     import load_candles
 from strategies.supertrend import ST as STBase
 
-# ─── STRATEGY WITH ORDER LOGGING ─────────────────────────────────────────────
+#  STRATEGY WITH ORDER LOGGING 
 class STLogger(STBase):
     """
     SuperTrend entry/exit only; logs every Completed order into self.order_log.
@@ -52,7 +52,7 @@ class STLogger(STBase):
             })
 
 
-# ─── BACKTEST PARAMETERS ─────────────────────────────────────────────────────
+#  BACKTEST PARAMETERS 
 ST_PARAMS = {
     "ICICIBANK": dict(period=60, mult=9.0),
     "INFY":      dict(period=60, mult=14.0),
@@ -62,13 +62,13 @@ ST_PARAMS = {
 BURN_IN_DATE   = "2025-02-15"
 TEST_START     = "2025-07-01"
 END            = "2025-07-17"
-WARMUP_FACTOR  = 10   # warm‑up bars = period * this
+WARMUP_FACTOR  = 10   # warmup bars = period * this
 
 STARTING_CASH = 500_000
 COMMISSION    = 0.0002
 
 
-# ─── CEREBRO SETUP ────────────────────────────────────────────────────────────
+#  CEREBRO SETUP 
 def make_cerebro():
     cb = bt.Cerebro(stdstats=False)
     cb.broker.set_coc(True)
@@ -79,25 +79,25 @@ def make_cerebro():
     return cb
 
 
-# ─── MAIN LOOP & EXCURSION CALCULATION ───────────────────────────────────────
+#  MAIN LOOP & EXCURSION CALCULATION 
 all_excursions = []
 
 for symbol, params in ST_PARAMS.items():
     period, mult = params["period"], params["mult"]
-    print(f"\n→ Running {symbol} @ ST({period},{mult}), no SL/TP")
+    print(f"\n Running {symbol} @ ST({period},{mult}), no SL/TP")
 
     # 1) load full history
     df_all = load_candles(symbol, BURN_IN_DATE, END)
     df_all.index = pd.to_datetime(df_all.index)
 
-    # 2) split warm‑up vs test
+    # 2) split warmup vs test
     ts_dt       = datetime.strptime(TEST_START, "%Y-%m-%d")
     df_warm_all = df_all[df_all.index < ts_dt]
     df_test     = df_all[df_all.index >= ts_dt]
 
     needed = period * WARMUP_FACTOR
     if len(df_warm_all) < needed:
-        print(f"  ⚠️  Not enough warm‑up bars ({len(df_warm_all)} < {needed}), skipping.")
+        print(f"    Not enough warmup bars ({len(df_warm_all)} < {needed}), skipping.")
         continue
 
     df_warm = df_warm_all.tail(needed)
@@ -125,7 +125,7 @@ for symbol, params in ST_PARAMS.items():
         if open_o is None:
             open_o = o
         else:
-            # entry BUY → exit SELL, or entry SELL → exit BUY
+            # entry BUY  exit SELL, or entry SELL  exit BUY
             if (open_o["side"] == "BUY" and o["side"] == "SELL") or \
                (open_o["side"] == "SELL" and o["side"] == "BUY"):
                 # slice the DataFrame between entry & exit
@@ -153,10 +153,10 @@ for symbol, params in ST_PARAMS.items():
                 })
                 open_o = None
             else:
-                # mis‑matched sequence: reset
+                # mismatched sequence: reset
                 open_o = o
 
-    print(f"  → {len(trades)} closed trades for {symbol}")
+    print(f"   {len(trades)} closed trades for {symbol}")
     all_excursions.extend(trades)
 
 # debug
@@ -164,4 +164,4 @@ print(f"\nTotal excursions collected: {len(all_excursions)}")
 
 # 5) write CSV
 pd.DataFrame(all_excursions).to_csv(OUT_CSV, index=False)
-print(f"Wrote trade excursions → {OUT_CSV}")
+print(f"Wrote trade excursions  {OUT_CSV}")

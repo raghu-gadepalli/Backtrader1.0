@@ -18,6 +18,6 @@ best = (
 print("Calibration points:")
 print(best)
 
-# 4. Fit best_mult ≃ a + b * vol_baseline
+# 4. Fit best_mult  a + b * vol_baseline
 a, b = np.polyfit(best["vol_baseline"], best["best_mult"], 1)
-print(f"\nFitted mapping:\n  best_mult = {a:.4f} + {b:.4f} × vol_baseline")
+print(f"\nFitted mapping:\n  best_mult = {a:.4f} + {b:.4f}  vol_baseline")

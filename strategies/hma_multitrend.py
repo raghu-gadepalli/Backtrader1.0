@@ -1,96 +1,214 @@
-from typing import Dict, Any, Tuple
 import backtrader as bt
-from config.enums import TrendType
-
-def derive_hma_state_strength(rec: Dict[str, Any]) -> Tuple[TrendType, str]:
-    h, m1, m2, m3 = rec["hma"], rec["hma_mid1"], rec["hma_mid2"], rec["hma_mid3"]
-    bull3 = h > m1; bull4 = h > m2; bull5 = h > m3
-    bear3 = h < m1; bear4 = h < m2; bear5 = h < m3
-
-    if bull5 and bull4 and bull3: return TrendType.BUY,  "Strong Buy"
-    if bull5 and bull4:           return TrendType.BUY,  "Medium Buy"
-    if bull5 and bull3:           return TrendType.BUY,  "Weak Buy"
-    if bull5:                     return TrendType.BUY,  "Very Weak Buy"
-
-    if bear5 and bear4 and bear3: return TrendType.SELL, "Strong Sell"
-    if bear5 and bear4:           return TrendType.SELL, "Medium Sell"
-    if bear5 and bear3:           return TrendType.SELL, "Weak Sell"
-    if bear5:                     return TrendType.SELL, "Very Weak Sell"
-
-    return TrendType.NO_TREND, "Neutral"
-
+import pandas as pd
 
 class HmaMultiTrendStrategy(bt.Strategy):
     params = dict(
-        fast=600, mid1=760, mid2=1040, mid3=1520,
-        atr_period=14, atr_mult=0.1,
-        adx_period=14, adx_threshold=25.0,
-        printlog=False,
+        # Hull MA timeframes
+        fast=80, mid1=220, mid2=560, mid3=1520,
+        # ATR for stop‑loss and gap filter
+        atr_period=14, atr_mult=1.0,
+        # Date filter
+        ignore_before=None,  # e.g. "2025-07-01"
+        # Stop‑loss settings
+        use_sl_tg=True,
+        sl_mode="PCT",       # "PCT" | "ATR" | "FIXED"
+        sl_value=0.5,        # pct (0.5=50%), ATR‑mult or fixed price
+        # Trailing‑stop settings
+        use_trailing=True,
+        trail_atr_mult=1.0,
+        # Signal‑exit on HMA flip
+        use_signal_exit=True,
+        # ADX filter
+        adx_period=14,
+        adx_threshold=20.0,
+        # Re‑entry cooldown in bars
+        reentry_cooldown=0,
+        # Default order size
+        order_size=1,
+        # Profit‑target placeholders
+        tg_mode="OFF", tg1=0.0, tg2=0.0, tg3=0.0,
     )
 
     def __init__(self):
-        p = self.p
-        c = self.data.close
+        # ─── Indicators ─────────────────────────────────
+        self.hma_fast = bt.indicators.HMA(self.data.close, period=self.p.fast)
+        self.hma_mid1 = bt.indicators.HMA(self.data.close, period=self.p.mid1)
+        self.hma_mid2 = bt.indicators.HMA(self.data.close, period=self.p.mid2)
+        self.hma_mid3 = bt.indicators.HMA(self.data.close, period=self.p.mid3)
+        self.atr      = bt.indicators.ATR(self.data, period=self.p.atr_period)
+        self.adx      = bt.indicators.ADX(self.data, period=self.p.adx_period)
 
-        self.hma      = bt.indicators.HullMovingAverage(c, period=p.fast)
-        self.hma_mid1 = bt.indicators.HullMovingAverage(c, period=p.mid1)
-        self.hma_mid2 = bt.indicators.HullMovingAverage(c, period=p.mid2)
-        self.hma_mid3 = bt.indicators.HullMovingAverage(c, period=p.mid3)
+        # Will hold the ATR value exactly at entry execution
+        self.last_atr_on_entry = None
 
-        self.atr = bt.indicators.ATR(self.data, period=p.atr_period)
-        self.adx = bt.indicators.ADX(self.data, period=p.adx_period)
+        # Convert ignore_before string to datetime once
+        if isinstance(self.p.ignore_before, str):
+            dt = pd.to_datetime(self.p.ignore_before)
+            self._ignore_before = dt.to_pydatetime()
+        else:
+            self._ignore_before = self.p.ignore_before
 
-        self.order = None
+        # Internal state
+        self._last_close    = None
+        self.entry_order    = None
+        self.sl_order       = None
+        self.trail_order    = None
+        self._last_tradeid  = None
+        self._last_exit_bar = -float("inf")
 
-        # for analyzer
-        self.last_atr_on_entry   = None
-        self.last_close_on_entry = None
+    def log(self, txt, dt=None):
+        dt = dt or bt.num2date(self.data.datetime[0])
+        print(f"{dt:%Y-%m-%d %H:%M:%S}, {txt}")
 
-    def log(self, msg):
-        if self.p.printlog:
-            dt = bt.num2date(self.data.datetime[0])
-            print(f"{dt.isoformat()} {msg}")
+    def _calc_stoploss(self, entry_price):
+        mode = self.p.sl_mode.upper()
+        val  = self.p.sl_value
+        if mode == "PCT":
+            # interpret val as percent, not fraction
+            return entry_price * (1.0 - val / 100.0)
+        if mode == "ATR":
+            return entry_price - val * self.atr[0]
+        # FIXED
+        return entry_price - val
 
     def next(self):
-        if self.order:
+        bar = len(self)
+        current_dt = bt.num2date(self.data.datetime[0])
+
+        # 1) Date filter
+        if self._ignore_before and current_dt < self._ignore_before:
+            self._last_close = self.data.close[0]
             return
 
-        rec = dict(hma=self.hma[0], hma_mid1=self.hma_mid1[0],
-                   hma_mid2=self.hma_mid2[0], hma_mid3=self.hma_mid3[0])
-        state, strength = derive_hma_state_strength(rec)
+        # 2) ADX filter
+        if self.adx[0] < self.p.adx_threshold:
+            self._last_close = self.data.close[0]
+            return
 
-        gap    = abs(self.data.close[0] - self.hma[0])
-        thresh = self.p.atr_mult * self.atr[0]
-        adx_ok = self.adx[0] > self.p.adx_threshold
-        pos    = self.position.size
+        # 3) Skip if an entry is pending or we're in cooldown
+        if self.entry_order or (bar - self._last_exit_bar) <= self.p.reentry_cooldown:
+            return
 
-        # Entries
-        if pos == 0 and adx_ok and gap > thresh:
-            if state == TrendType.BUY and strength in ("Strong Buy", "Medium Buy"):
-                self.last_atr_on_entry   = float(self.atr[0])
-                self.last_close_on_entry = float(self.data.close[0])
-                self.log(f"BUY  {strength} gap {gap:.2f}>{thresh:.2f} ADX {self.adx[0]:.1f}")
-                self.order = self.buy()
-            elif state == TrendType.SELL and strength in ("Strong Sell", "Medium Sell"):
-                self.last_atr_on_entry   = float(self.atr[0])
-                self.last_close_on_entry = float(self.data.close[0])
-                self.log(f"SELL {strength} gap {gap:.2f}>{thresh:.2f} ADX {self.adx[0]:.1f}")
-                self.order = self.sell()
+        # 4) Trend conditions
+        long_cond  = (self.hma_fast[0]  > self.hma_mid1[0] >
+                      self.hma_mid2[0]  > self.hma_mid3[0])
+        short_cond = (self.hma_fast[0]  < self.hma_mid1[0] <
+                      self.hma_mid2[0]  < self.hma_mid3[0])
 
-        # Exits
-        elif pos > 0 and state == TrendType.SELL:
-            self.log("EXIT LONG")
-            self.order = self.close()
-        elif pos < 0 and state == TrendType.BUY:
-            self.log("EXIT SHORT")
-            self.order = self.close()
+        # 5) Entry logic
+        if not self.position and (long_cond or short_cond):
+            # ATR‑gap filter
+            if self.p.atr_mult and self._last_close is not None:
+                gap = abs(self.data.close[0] - self._last_close)
+                if gap > self.p.atr_mult * self.atr[0]:
+                    self._last_close = self.data.close[0]
+                    self.log("Skipped entry due to ATR gap")
+                    return
+
+            size = self.p.order_size if long_cond else -self.p.order_size
+            self.entry_order = self.buy(size=size) if long_cond else self.sell(size=-size)
+            side = 'BUY' if long_cond else 'SELL'
+            self.log(f"Submitted {side} entry ref={self.entry_order.ref} size={abs(size)}")
+
+        # 6) Update last_close for next bar
+        self._last_close = self.data.close[0]
+
+        # 7) Signal‑exit on HMA flip
+        if self.position and self.p.use_signal_exit and (long_cond or short_cond):
+            exit_long  = (self.position.size < 0 and long_cond)
+            exit_short = (self.position.size > 0 and short_cond)
+            if exit_long or exit_short:
+                # Cancel any existing stops
+                if self.sl_order:
+                    self.cancel(self.sl_order)
+                    self.sl_order = None
+                if self.trail_order:
+                    self.cancel(self.trail_order)
+                    self.trail_order = None
+
+                self.close()
+                self.log(f"Signal exit for tradeid={self._last_tradeid}")
 
     def notify_order(self, order):
-        if order.status in (order.Submitted, order.Accepted):
+        # 1) Skip pre‑execution statuses
+        if order.status in (bt.Order.Created, bt.Order.Submitted, bt.Order.Accepted):
             return
-        if order.status == order.Completed:
-            side = "BUY" if order.isbuy() else "SELL"
-            self.log(f"{side} EXECUTED @ {order.executed.price:.2f} size {order.executed.size}")
-        elif order.status in (order.Canceled, order.Rejected):
-            self.log("ORDER Canceled/Rejected")
-        self.order = None
+
+        # 2) Handle entry order lifecycle
+        if self.entry_order and order.ref == self.entry_order.ref:
+            if order.status == bt.Order.Completed:
+                entry_price = order.executed.price
+
+                # Capture ATR at entry
+                self.last_atr_on_entry = float(self.atr[0])
+
+                direction = 'BUY' if order.size > 0 else 'SELL'
+                self.log(f"Entry EXECUTED {direction} ref={order.ref} price={entry_price:.2f}")
+
+                # Place fixed SL if enabled
+                if self.p.use_sl_tg:
+                    sl_price = self._calc_stoploss(entry_price)
+                    self.sl_order = self.sell(
+                        exectype=bt.Order.Stop,
+                        price=sl_price,
+                        size=abs(order.executed.size)
+                    )
+                    self.log(f"Placed SL order ref={self.sl_order.ref} stop={sl_price:.2f}")
+
+                # Place trailing SL if enabled
+                if self.p.use_sl_tg and self.p.use_trailing:
+                    self.trail_order = self.sell(
+                        exectype=bt.Order.StopTrail,
+                        trailamount=self.p.trail_atr_mult * self.atr[0],
+                        size=abs(order.executed.size)
+                    )
+                    self.log(f"Placed TRAIL order ref={self.trail_order.ref} trailmult={self.p.trail_atr_mult}")
+
+                # clear the entry pointer only
+                self.entry_order = None
+
+            elif order.status in (bt.Order.Canceled, bt.Order.Margin, bt.Order.Rejected):
+                self.log(f"Entry order {order.ref} {order.getstatusname()}")
+                self.entry_order = None
+
+        # 3) Handle exit orders
+        elif order.status == bt.Order.Completed:
+            # Fixed SL hit
+            if order.exectype == bt.Order.Stop and getattr(self, 'sl_order', None) and order.ref == self.sl_order.ref:
+                self._last_exit_type = 'STOPLOSS'
+                # cancel trailing if present
+                if getattr(self, 'trail_order', None):
+                    self.cancel(self.trail_order)
+                    self.trail_order = None
+                self.log(f"Fixed SL hit ref={order.ref}")
+
+            # Trailing SL hit
+            elif order.exectype == bt.Order.StopTrail and getattr(self, 'trail_order', None) and order.ref == self.trail_order.ref:
+                self._last_exit_type = 'TRAIL'
+                # cancel fixed SL if present
+                if getattr(self, 'sl_order', None):
+                    self.cancel(self.sl_order)
+                    self.sl_order = None
+                self.log(f"Trailing SL hit ref={order.ref}")
+
+    def notify_trade(self, trade):
+        # 1) On open, capture the tradeid
+        if trade.isopen:
+            self._last_tradeid = trade.tradeid
+            self.log(f"Trade OPENED tradeid={trade.tradeid} size={trade.size} price={trade.price:.2f}")
+
+        # 2) On close, tag the exit type and reset state
+        elif trade.isclosed:
+            # record exit bar for cooldown
+            self._last_exit_bar = len(self)
+
+            # determine and stamp exit_type on the Trade
+            exit_type = getattr(self, '_last_exit_type', None) or 'SIGNAL'
+            setattr(trade, '_exit_type', exit_type)
+            # clear for next trade
+            self._last_exit_type = None
+
+            # reset ATR‑on‑entry
+            self.last_atr_on_entry = None
+
+            self.log(f"Trade CLOSED tradeid={trade.tradeid} pnl={trade.pnl:.2f} comm={trade.commission:.2f}")

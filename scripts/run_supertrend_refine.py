@@ -2,10 +2,10 @@
 """
 scripts/run_supertrend_refine.py
 
-Manual refinement for SuperTrend: for one or more symbols, test a hand‑picked
+Manual refinement for SuperTrend: for one or more symbols, test a handpicked
 list of (period, mult) combos and both dump results to CSV _and_ print them.
-Warm‑up is exactly period*WARMUP_FACTOR bars immediately before TEST_START,
-taken from the full load from BURN_IN_DATE→END.
+Warmup is exactly period*WARMUP_FACTOR bars immediately before TEST_START,
+taken from the full load from BURN_IN_DATEEND.
 """
 
 import os
@@ -16,7 +16,7 @@ from datetime import datetime
 
 import backtrader as bt
 
-# ─── project root ────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -24,17 +24,17 @@ if _ROOT not in sys.path:
 from data.load_candles    import load_candles
 from strategies.supertrend import ST
 
-# ─── SETTINGS ────────────────────────────────────────────────────────────────
-BURN_IN_DATE   = "2025-02-15"   # earliest bar you’ll ever load
+#  SETTINGS 
+BURN_IN_DATE   = "2025-02-15"   # earliest bar youll ever load
 TEST_START     = "2025-04-01"   # inclusive start of your test window
 END            = "2025-07-06"   # inclusive end of test window
 STARTING_CASH  = 500_000
 COMMISSION     = 0.0002
-WARMUP_FACTOR  = 10             # burn‑in bars = period * this factor
+WARMUP_FACTOR  = 10             # burnin bars = period * this factor
 
-# ─── MANUAL COMBINATIONS PER SYMBOL ──────────────────────────────────────────
+#  MANUAL COMBINATIONS PER SYMBOL 
 
-# auto‑generate period=60, mult from 1.0 to 16.8 inclusive in steps of 0.2
+# autogenerate period=60, mult from 1.0 to 16.8 inclusive in steps of 0.2
 multipliers = [x / 5 for x in range(6, 85)]  # since 1.2*5=6 and 16.8*5=84
 
 COMBINATIONS = {
@@ -112,20 +112,20 @@ def backtest(symbol: str, period: int, mult: float):
     df_all = load_candles(symbol, BURN_IN_DATE, END)
     df_all.index = pd.to_datetime(df_all.index)
 
-    # split warm‑up vs test
+    # split warmup vs test
     ts_dt       = datetime.strptime(TEST_START, "%Y-%m-%d")
     df_warm_all = df_all[df_all.index < ts_dt]
     df_test     = df_all[df_all.index >= ts_dt]
 
-    # ensure enough warm‑up bars
+    # ensure enough warmup bars
     needed = period * WARMUP_FACTOR
     if len(df_warm_all) < needed:
-        print(f"❗ Not enough warm‑up bars for {symbol} (have {len(df_warm_all)}, need {needed})")
+        print(f" Not enough warmup bars for {symbol} (have {len(df_warm_all)}, need {needed})")
         sys.exit(1)
 
-    # take exactly the last `needed` bars for warm‑up
+    # take exactly the last `needed` bars for warmup
     df_warm = df_warm_all.tail(needed)
-    # concatenate warm‑up + test
+    # concatenate warmup + test
     df = pd.concat([df_warm, df_test])
 
     # run the backtest
@@ -177,8 +177,8 @@ def run_refine():
                 f.flush()
 
                 # print concise result
-                print(f"ST({p},{m}) → Sharpe: {sr:.6f}, "
-                      f"Expectancy: {expc:.6f}, Trades: {tot}, Win Rate: {wr:.2f}%")
+                print(f"ST({p},{m})  Sharpe: {sr:.6f}, "
+                      f"Expectancy: {expc:.6f}, Trades: {tot}, WinRate: {wr:.2f}%")
 
 if __name__ == "__main__":
     run_refine()

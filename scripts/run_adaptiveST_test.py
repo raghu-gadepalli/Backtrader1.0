@@ -11,7 +11,7 @@ import matplotlib; matplotlib.use("Agg", force=True)
 
 import backtrader as bt
 
-# ─── project root ───────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -33,7 +33,7 @@ ST_PARAMS = {
 
 SYMBOLS = list(ST_PARAMS.keys())
 
-# warm‑up for indicator priming
+# warmup for indicator priming
 WARMUP = "2025-04-01"
 
 # explicit evaluation windows with clear labels
@@ -49,7 +49,7 @@ results = []
 def run_period(symbol, label, start, end):
     params = ST_PARAMS[symbol]
 
-    # Load warm‑up through end
+    # Load warmup through end
     df = load_candles(symbol, WARMUP, end)
     df.index = pd.to_datetime(df.index)
 

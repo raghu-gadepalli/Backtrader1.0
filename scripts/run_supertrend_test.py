@@ -15,7 +15,7 @@ import sys
 import pandas as pd
 from datetime import datetime
 
-# ───────────────────────── Project root fix ─────────────────────────
+#  Project root fix 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -26,7 +26,7 @@ from strategies.supertrend import ST
 from analyzers.trade_list  import TradeList
 
 
-# ───────────────────────── Config ───────────────────────────────────
+#  Config 
 # Grid of multipliers you want to test for RELIANCE
 ST_PARAM_GRID = [
     {"period": 60, "mult": 12.0},

@@ -1,249 +1,362 @@
 #!/usr/bin/env python3
-"""
-scripts/run_hma_multi_sweep.py
-
-Three-pass coordinate descent for multi-HMA across multiple symbols,
-logging **all** stage results and **final** survivors into two merged CSVs
-in the results/ folder, with expectancy and incremental flushes.
-"""
+# scripts/run_hmamulti_sweep.py
+#
+# 3PASS COARSEREFINE SWEEP (fast+mid1  mid2  mid3) ACROSS PERIODS
+# - Warmup bars = max(periods) * WARMUP_FACTOR; skip combo if insufficient data
+# - Cerebro gets (warmup + test); metrics/ATR mean computed on test slice only
+# - Outputs:
+#     results/hmamulti_sweep_results.csv   (ALL rows, every stage & period)
+#     results/hmamulti_sweep_trades.csv    (per-trade rows via TradeList analyzer)
 
 import os
 import sys
 import csv
+from itertools import product
+from datetime import timedelta
+import pandas as pd
+import backtrader as bt
 
-# ─── project root on path ─────────────────────────────────────────────────────
+#  Project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+    sys.path.insert(1, _ROOT)
 
-# ─── dump CSVs into a 'results' folder ────────────────────────────────────────
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-import backtrader as bt
-from data.load_candles         import load_candles
+#  Imports (match your tree) 
+from data.load_candles import load_candles
 from strategies.hma_multitrend import HmaMultiTrendStrategy
+from analyzers.trade_list import TradeList as TradeListAnalyzer  # required
 
-# ─── USER PARAMETERS ─────────────────────────────────────────────────────────
-SYMBOLS      = ["ICICIBANK", "INFY", "RELIANCE"]
-WARMUP_START = "2025-04-01"
-END          = "2025-07-06"
-ATR_MULT     = 0.0
+#  USER SETTINGS 
+SYMBOLS = ["ICICIBANK", "INFY", "RELIANCE"]
 
-METRIC       = "sharpe"   # or "expectancy"
-PASS1_N      = 3          # survivors to pass2
-PASS2_N      = 3          # survivors to pass3
-PASS3_N      = 3          # final combos to output
-DISTINCT1    = True       # distinct fast in pass1
-DISTINCT2    = True       # distinct mid2 in pass2
-DISTINCT3    = True       # distinct mid3 in pass3
+# Period windows (label, start, end)
+PERIODS = [
+    # ("Jan-25", "2025-01-01 09:15:00", "2025-01-31 15:30:00"),
+    # ("Feb-25", "2025-02-01 09:15:00", "2025-02-28 15:30:00"),
+    # ("Mar-25", "2025-03-01 09:15:00", "2025-03-31 15:30:00"),
+    # ("Apr-25", "2025-04-01 09:15:00", "2025-04-30 15:30:00"),
+    # ("May-25", "2025-05-01 09:15:00", "2025-05-31 15:30:00"),
+    # ("Jun-25", "2025-06-01 09:15:00", "2025-06-30 15:30:00"),
+    ("Jul-25", "2025-07-01 09:15:00", "2025-07-22 15:30:00"),
+]
 
-# ─── PARAMETER RANGES (COMMON) ───────────────────────────────────────────────
-FAST_PERIODS = range(30, 181, 30)
-MID1_PERIODS = range(120, 721, 120)
-MID2_PERIODS = [120, 180, 240, 360, 840]
-MID3_PERIODS = [240, 360, 480, 720]
+STARTING_CASH = 500_000
+COMMISSION    = 0.0002
 
-# ─── Starting capital & commission ───────────────────────────────────────────
-REQUIRED_CASH     = 500_000
-COMMISSION_RATE   = 0.0002
+# Warmup handling
+WARMUP_FACTOR = 10
+BAR_MINUTES   = 1
 
+# PASS RANGES  (ensure f < m1 < m2 < m3)
+FAST_PERIODS =  range(60, 181, 30)        # Pass 1
+MID1_PERIODS =  range(180, 721, 60)       # Pass 1
+MID2_PERIODS =  [600, 900, 1200, 1800]    # Pass 2
+MID3_PERIODS =  [1800, 2400, 3200, 3800]  # Pass 3
+
+# Survivors per pass
+PASS1_N = 5
+PASS2_N = 5
+PASS3_N = 5
+
+# Enforce uniqueness on the dimension optimized in that pass
+DISTINCT1 = True   # unique 'fast' in pass1
+DISTINCT2 = True   # unique 'mid2' in pass2
+DISTINCT3 = True   # unique 'mid3' in pass3
+
+PRIMARY_METRIC = "sharpe_mean"  # or "expectancy_mean"
+
+# ATR params to feed & log
+ATR_PERIOD = 14
+ATR_MULT   = 0.0
+
+#  Helpers 
 def make_cerebro():
-    cerebro = bt.Cerebro(stdstats=False)
-    cerebro.broker.set_coc(True)
-    cerebro.broker.setcash(REQUIRED_CASH)
-    cerebro.broker.setcommission(commission=COMMISSION_RATE)
-    cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
-                        timeframe=bt.TimeFrame.Minutes, riskfreerate=0.0)
-    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer,  _name="trades")
-    return cerebro
+    c = bt.Cerebro(stdstats=False)
+    c.broker.set_coc(True)
+    c.broker.setcash(STARTING_CASH)
+    c.broker.setcommission(commission=COMMISSION)
+    c.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
+                  timeframe=bt.TimeFrame.Days, riskfreerate=0.0)
+    c.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")
+    c.addanalyzer(bt.analyzers.DrawDown, _name="ddown")
+    c.addanalyzer(TradeListAnalyzer, _name="tlist")
+    return c
 
-def backtest(symbol, fast, mid1, mid2, mid3, atr_mult):
+def pandas_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    high, low, close = df["high"], df["low"], df["close"]
+    prev_close = close.shift(1)
+    tr = pd.concat([
+        (high - low).abs(),
+        (high - prev_close).abs(),
+        (low  - prev_close).abs()
+    ], axis=1).max(axis=1)
+    return tr.rolling(period, min_periods=period).mean()
+
+def safe_get(analyzers, name, field):
+    try:
+        val = getattr(analyzers.getbyname(name).get_analysis(), field)
+        if isinstance(val, (list, tuple)) and val:
+            return float(val[0])
+        return float(val)
+    except Exception:
+        return None
+
+def compute_expectancy(tstats: dict) -> float:
+    try:
+        won  = tstats.get("won", {})
+        lost = tstats.get("lost", {})
+        tot  = (won.get("total", 0) or 0) + (lost.get("total", 0) or 0)
+        if not tot:
+            return 0.0
+        avg_w = won.get("pnl", {}).get("average", 0.0)
+        avg_l = lost.get("pnl", {}).get("average", 0.0)
+        win_p = (won.get("total", 0) or 0) / tot
+        loss_p= (lost.get("total", 0) or 0) / tot
+        return (avg_w * win_p) + (avg_l * loss_p)
+    except Exception:
+        return 0.0
+
+def sort_key(rec):
+    # Higher PRIMARY_METRIC first; then expectancy_mean; then trades_sum
+    return (-rec[PRIMARY_METRIC], -rec["expectancy_mean"], -rec["trades_sum"])
+
+#  Single-period run 
+def run_period(symbol, label, start_raw, end_raw, f, m1, m2, m3, warmup_bars):
+    test_start_ts = pd.to_datetime(start_raw)
+    test_end_ts   = pd.to_datetime(end_raw)
+
+    warmup_start_ts = test_start_ts - timedelta(minutes=warmup_bars * BAR_MINUTES)
+
+    df_all = load_candles(
+        symbol,
+        warmup_start_ts.strftime("%Y-%m-%d %H:%M:%S"),
+        test_end_ts.strftime("%Y-%m-%d %H:%M:%S")
+    )
+    df_all.index = pd.to_datetime(df_all.index)
+
+    if df_all.empty or len(df_all) < warmup_bars:
+        return None, []
+
+    df_test = df_all[(df_all.index >= test_start_ts) & (df_all.index <= test_end_ts)].copy()
+    if df_test.empty:
+        return None, []
+
+    atr_series = pandas_atr(df_test, ATR_PERIOD)
+    atr_mean   = float(atr_series.mean())
+
     cerebro = make_cerebro()
-    df      = load_candles(symbol, WARMUP_START, END)
-    data    = bt.feeds.PandasData(dataname=df,
-                                  timeframe=bt.TimeFrame.Minutes,
-                                  compression=1)
+    data = bt.feeds.PandasData(dataname=df_all,
+                               timeframe=bt.TimeFrame.Minutes,
+                               compression=1)
     cerebro.adddata(data)
-    cerebro.addstrategy(HmaMultiTrendStrategy,
-                        fast=fast, mid1=mid1, mid2=mid2, mid3=mid3,
-                        atr_mult=atr_mult, printlog=False)
 
+    strat_kwargs = dict(
+        fast=f, mid1=m1, mid2=m2, mid3=m3,
+        atr_period=ATR_PERIOD, atr_mult=ATR_MULT,
+        printlog=False
+    )
+    # If strategy supports prewarm_bars, you can add it here:
+    # strat_kwargs["prewarm_bars"] = warmup_bars
+
+    strat = cerebro.addstrategy(HmaMultiTrendStrategy, **strat_kwargs)
     strat = cerebro.run()[0]
-    # Sharpe
-    s   = strat.analyzers.sharpe.get_analysis().get("sharperatio") or float("-inf")
-    # Trades
-    tr  = strat.analyzers.trades.get_analysis()
-    won = tr.get("won",{}).get("total",0)
-    lost= tr.get("lost",{}).get("total",0)
-    # Expectancy
-    avg_w = tr.get("won",{}).get("pnl",{}).get("average",0.0)
-    avg_l = tr.get("lost",{}).get("pnl",{}).get("average",0.0)
-    tot   = won + lost
-    e     = (won/tot)*avg_w + (lost/tot)*avg_l if tot else float("-inf")
-    return s, e, won, lost
 
-def sort_key(r):
-    return (-r[METRIC], -r["expectancy"], r["trades"])
+    sharpe = safe_get(strat.analyzers, "sharpe", "sharperatio")
+    dd_pct = safe_get(strat.analyzers, "ddown", "maxdrawdown") or 0.0
+    td     = strat.analyzers.trades.get_analysis()
+
+    total  = td.get("total", {}).get("closed", 0) or 0
+    won    = td.get("won",   {}).get("total", 0) or 0
+    win_rt = (won / total * 100.0) if total else 0.0
+    expct  = compute_expectancy(td)
+
+    trades_list = []
+    for rec in strat.analyzers.tlist.get_analysis():
+        rec.update({
+            "symbol": symbol, "period_label": label,
+            "fast": f, "mid1": m1, "mid2": m2, "mid3": m3,
+            "atr_period": ATR_PERIOD, "atr_mult": ATR_MULT,
+            "atr_mean": atr_mean
+        })
+        trades_list.append(rec)
+
+    summary = dict(
+        symbol=symbol, period_label=label,
+        fast=f, mid1=m1, mid2=m2, mid3=m3,
+        atr_period=ATR_PERIOD, atr_mult=ATR_MULT, atr_mean=atr_mean,
+        sharpe=sharpe if sharpe is not None else float("-inf"),
+        expectancy=expct,
+        trades=total,
+        win_rate=win_rt,
+        drawdown=dd_pct/100.0
+    )
+    return summary, trades_list
+
+#  Aggregate a combo across all periods 
+def eval_combo(symbol, f, m1, m2, m3, stage, writer, trade_collector):
+    max_len     = max(f, m1, m2, m3, ATR_PERIOD)
+    warmup_bars = max_len * WARMUP_FACTOR
+
+    sharpe_vals, exp_vals, trade_vals = [], [], []
+
+    for (label, start_raw, end_raw) in PERIODS:
+        row, trades = run_period(symbol, label, start_raw, end_raw,
+                                 f, m1, m2, m3, warmup_bars)
+        if row is None:
+            continue
+
+        r = row.copy()
+        r["stage"] = stage
+        writer.writerow(r)
+
+        sharpe_vals.append(row["sharpe"])
+        exp_vals.append(row["expectancy"])
+        trade_vals.append(row["trades"])
+
+        trade_collector.extend(trades)
+
+    if not sharpe_vals:
+        return None
+
+    return dict(
+        symbol=symbol, fast=f, mid1=m1, mid2=m2, mid3=m3,
+        atr_period=ATR_PERIOD, atr_mult=ATR_MULT,
+        sharpe_mean=sum(sharpe_vals)/len(sharpe_vals),
+        expectancy_mean=sum(exp_vals)/len(exp_vals),
+        trades_sum=sum(trade_vals)
+    )
+
+#  Main 
+def main():
+    res_path    = os.path.join(RESULTS_DIR, "hmamulti_sweep_results.csv")
+    trades_path = os.path.join(RESULTS_DIR, "hmamulti_sweep_trades.csv")
+
+    res_fields = ["symbol","period_label","stage",
+                  "fast","mid1","mid2","mid3",
+                  "atr_period","atr_mult","atr_mean",
+                  "sharpe","expectancy","trades","win_rate","drawdown"]
+
+    tr_fields  = [
+        "dt_in","dt_out","price_in","price_out","size","side",
+        "pnl","pnl_comm","barlen","tradeid",
+        "atr_entry","atr_pct","mae_abs","mae_pct",
+        "mfe_abs","mfe_pct","ret_pct",
+        "symbol","period_label",
+        "fast","mid1","mid2","mid3",
+        "atr_period","atr_mult","atr_mean"
+    ]
+
+    trade_rows_all = []
+
+    with open(res_path, "w", newline="") as rf:
+        rw_all = csv.DictWriter(rf, fieldnames=res_fields)
+        rw_all.writeheader()
+
+        # PASS 1: fast & mid1
+        print("\n=== PASS 1: fast & mid1 ===")
+        p1_results = []
+        combos_p1 = [(f, m1) for f in FAST_PERIODS for m1 in MID1_PERIODS if f < m1]
+        total_p1 = len(SYMBOLS) * len(combos_p1)
+        done = 0
+        for symbol in SYMBOLS:
+            for f, m1 in combos_p1:
+                done += 1
+                # cheap placeholders for mid2/mid3
+                def_m2, def_m3 = f * 2, f * 4
+                agg = eval_combo(symbol, f, m1, def_m2, def_m3, stage=1,
+                                 writer=rw_all,
+                                 trade_collector=trade_rows_all)
+                if agg:
+                    p1_results.append(agg)
+                print(f"[P1 {done}/{total_p1}] {symbol} f={f} m1={m1}")
+        p1_results.sort(key=sort_key)
+
+        heads1, seen_fast = [], set()
+        for r in p1_results:
+            if DISTINCT1 and r["fast"] in seen_fast:
+                continue
+            heads1.append(r)
+            seen_fast.add(r["fast"])
+            if len(heads1) >= PASS1_N:
+                break
+
+        # PASS 2: mid2
+        print("\n=== PASS 2: mid2 ===")
+        p2_results = []
+        combos_p2 = []
+        for h in heads1:
+            f, m1 = h["fast"], h["mid1"]
+            combos_p2 += [(symbol, f, m1, m2) for symbol in SYMBOLS
+                          for m2 in MID2_PERIODS if m2 > m1]
+
+        total_p2 = len(combos_p2)
+        done = 0
+        for symbol, f, m1, m2 in combos_p2:
+            done += 1
+            def_m3 = f * 4
+            agg = eval_combo(symbol, f, m1, m2, def_m3, stage=2,
+                             writer=rw_all,
+                             trade_collector=trade_rows_all)
+            if agg:
+                p2_results.append(agg)
+            print(f"[P2 {done}/{total_p2}] {symbol} f={f} m1={m1} m2={m2}")
+        p2_results.sort(key=sort_key)
+
+        heads2, seen_m2 = [], set()
+        for r in p2_results:
+            if DISTINCT2 and r["mid2"] in seen_m2:
+                continue
+            heads2.append(r)
+            seen_m2.add(r["mid2"])
+            if len(heads2) >= PASS2_N:
+                break
+
+        # PASS 3: mid3
+        print("\n=== PASS 3: mid3 ===")
+        p3_results = []
+        combos_p3 = []
+        for h in heads2:
+            f, m1, m2 = h["fast"], h["mid1"], h["mid2"]
+            combos_p3 += [(symbol, f, m1, m2, m3) for symbol in SYMBOLS
+                          for m3 in MID3_PERIODS if m3 > m2]
+
+        total_p3 = len(combos_p3)
+        done = 0
+        for symbol, f, m1, m2, m3 in combos_p3:
+            done += 1
+            agg = eval_combo(symbol, f, m1, m2, m3, stage=3,
+                             writer=rw_all,
+                             trade_collector=trade_rows_all)
+            if agg:
+                p3_results.append(agg)
+            print(f"[P3 {done}/{total_p3}] {symbol} f={f} m1={m1} m2={m2} m3={m3}")
+        p3_results.sort(key=sort_key)
+
+        heads3, seen_m3 = [], set()
+        for r in p3_results:
+            if DISTINCT3 and r["mid3"] in seen_m3:
+                continue
+            heads3.append(r)
+            seen_m3.add(r["mid3"])
+            if len(heads3) >= PASS3_N:
+                break
+
+    # Write trades file
+    df_tr = pd.DataFrame(trade_rows_all)
+    if not df_tr.empty:
+        cols = [c for c in tr_fields if c in df_tr.columns]
+        df_tr[cols].to_csv(trades_path, index=False)
+    else:
+        open(trades_path, "w").write("")
+
+    print(f"\nWrote {res_path}")
+    print(f"Wrote {trades_path}")
+    print("\nTop picks (pass3 survivors):")
+    for r in heads3:
+        print(r)
 
 if __name__ == "__main__":
-    # Open merged 'all stages' CSV
-    all_path = os.path.join(RESULTS_DIR, "hma_multi_opt_all_stages.csv")
-    all_file = open(all_path, "w", newline="")
-    all_writer = csv.writer(all_file)
-    all_writer.writerow([
-        "symbol","stage","fast","mid1","mid2","mid3",
-        "sharpe","expectancy","trades","win_rate"
-    ])
-    all_file.flush()
-
-    # Open merged 'final survivors' CSV
-    final_path = os.path.join(RESULTS_DIR, "hma_multi_opt_final.csv")
-    final_file = open(final_path, "w", newline="")
-    final_writer = csv.writer(final_file)
-    final_writer.writerow([
-        "symbol","fast","mid1","mid2","mid3",
-        "sharpe","expectancy","trades","win_rate"
-    ])
-    final_file.flush()
-
-    for symbol in SYMBOLS:
-        print(f"\n====== OPTIMIZING {symbol} ======")
-        # --- PASS 1: fast & mid1 ---
-        s1_results = []
-        total = sum(1 for f in FAST_PERIODS for m1 in MID1_PERIODS if f < m1)
-        cnt = 0
-        print(f"[{symbol}] PASS 1: sweeping fast & mid1")
-        for fast in FAST_PERIODS:
-            for mid1 in MID1_PERIODS:
-                if fast >= mid1: continue
-                cnt += 1
-                def_mid2, def_mid3 = fast*2, fast*4
-                s,e,won,lost = backtest(symbol, fast, mid1, def_mid2, def_mid3, ATR_MULT)
-                trades = won + lost
-                wr     = (won/trades*100) if trades else 0
-                print(f" [{cnt}/{total}] f={fast} m1={mid1}  SR={s:.2f} Exp={e:.2f}")
-                rec = {
-                    "symbol":    symbol,
-                    "stage":     1,
-                    "fast":      fast,
-                    "mid1":      mid1,
-                    "mid2":      def_mid2,
-                    "mid3":      def_mid3,
-                    "sharpe":    s,
-                    "expectancy":e,
-                    "trades":    trades,
-                    "win_rate":  wr,
-                }
-                all_writer.writerow([
-                    rec["symbol"], rec["stage"], rec["fast"], rec["mid1"],
-                    rec["mid2"], rec["mid3"], f"{s:.6f}",
-                    f"{e:.6f}", rec["trades"], f"{wr:.2f}"
-                ])
-                all_file.flush()
-                s1_results.append(rec)
-
-        # pick pass1 survivors
-        s1_results.sort(key=sort_key)
-        heads1, seen1 = [], set()
-        for r in s1_results:
-            if DISTINCT1 and r["fast"] in seen1: continue
-            heads1.append(r); seen1.add(r["fast"])
-            if len(heads1) >= PASS1_N: break
-
-        # --- PASS 2: mid2 on survivors ---
-        s2_results = []
-        total = sum(1 for h in heads1 for m2 in MID2_PERIODS if m2 > h["mid1"])
-        cnt = 0
-        print(f"[{symbol}] PASS 2: drilling mid2 ({len(heads1)} survivors)")
-        for h in heads1:
-            fast, mid1 = h["fast"], h["mid1"]
-            for mid2 in MID2_PERIODS:
-                if mid2 <= mid1: continue
-                cnt += 1
-                def_mid3 = fast*4
-                s,e,won,lost = backtest(symbol, fast, mid1, mid2, def_mid3, ATR_MULT)
-                trades = won + lost
-                wr     = (won/trades*100) if trades else 0
-                rec = {
-                    "symbol":    symbol,
-                    "stage":     2,
-                    "fast":      fast,
-                    "mid1":      mid1,
-                    "mid2":      mid2,
-                    "mid3":      def_mid3,
-                    "sharpe":    s,
-                    "expectancy":e,
-                    "trades":    trades,
-                    "win_rate":  wr,
-                }
-                all_writer.writerow([
-                    rec["symbol"], rec["stage"], rec["fast"], rec["mid1"],
-                    rec["mid2"], rec["mid3"], f"{s:.6f}",
-                    f"{e:.6f}", rec["trades"], f"{wr:.2f}"
-                ])
-                all_file.flush()
-                s2_results.append(rec)
-
-        # pick pass2 survivors
-        s2_results.sort(key=sort_key)
-        heads2, seen2 = [], set()
-        for r in s2_results:
-            if DISTINCT2 and r["mid2"] in seen2: continue
-            heads2.append(r); seen2.add(r["mid2"])
-            if len(heads2) >= PASS2_N: break
-
-        # --- PASS 3: mid3 on survivors ---
-        s3_results = []
-        total = sum(1 for h in heads2 for m3 in MID3_PERIODS if m3 > h["mid2"])
-        cnt = 0
-        print(f"[{symbol}] PASS 3: drilling mid3 ({len(heads2)} survivors)")
-        for h in heads2:
-            fast, mid1, mid2 = h["fast"], h["mid1"], h["mid2"]
-            for mid3 in MID3_PERIODS:
-                if mid3 <= mid2: continue
-                cnt += 1
-                s,e,won,lost = backtest(symbol, fast, mid1, mid2, mid3, ATR_MULT)
-                trades = won + lost
-                wr     = (won/trades*100) if trades else 0
-                rec = {
-                    "symbol":    symbol,
-                    "stage":     3,
-                    "fast":      fast,
-                    "mid1":      mid1,
-                    "mid2":      mid2,
-                    "mid3":      mid3,
-                    "sharpe":    s,
-                    "expectancy":e,
-                    "trades":    trades,
-                    "win_rate":  wr,
-                }
-                all_writer.writerow([
-                    rec["symbol"], rec["stage"], rec["fast"], rec["mid1"],
-                    rec["mid2"], rec["mid3"], f"{s:.6f}",
-                    f"{e:.6f}", rec["trades"], f"{wr:.2f}"
-                ])
-                all_file.flush()
-                s3_results.append(rec)
-
-        # pick final survivors and write to final CSV
-        s3_results.sort(key=sort_key)
-        heads3, seen3 = [], set()
-        for r in s3_results:
-            if DISTINCT3 and r["mid3"] in seen3: continue
-            heads3.append(r); seen3.add(r["mid3"])
-            if len(heads3) >= PASS3_N: break
-
-        for r in heads3:
-            final_writer.writerow([
-                r["symbol"],
-                r["fast"], r["mid1"], r["mid2"], r["mid3"],
-                f"{r['sharpe']:.6f}", f"{r['expectancy']:.6f}",
-                r["trades"], f"{r['win_rate']:.2f}"
-            ])
-            final_file.flush()
-
-    all_file.close()
-    final_file.close()
-    print(f"\nWrote merged all‑stages → {all_path}")
-    print(f"Wrote merged final survivors → {final_path}")
+    main()

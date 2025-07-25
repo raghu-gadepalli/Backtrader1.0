@@ -51,7 +51,7 @@ def load_candles_with_history(symbol: str,
                               end:     str,
                               history_bars: int) -> pd.DataFrame:
     """
-    Fetch last `history_bars` 1‑min candles before `start` plus
+    Fetch last `history_bars` 1min candles before `start` plus
     all candles between `start` and `end`. Returns a single DataFrame.
     """
     # 1) history portion

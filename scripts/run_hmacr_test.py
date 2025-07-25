@@ -11,7 +11,7 @@ import sys
 import pandas as pd
 from datetime import datetime
 
-# ─── project root ───
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -21,26 +21,27 @@ from data.load_candles        import load_candles
 from strategies.hma_crossover import HmaCrossover
 from analyzers.trade_list     import TradeList  # same as SuperTrend run
 
-# ─── config (keep identical style to supertrend test) ───
+#  config (keep identical style to supertrend test) 
 HMA_PARAM_GRID = [
-    {"fast": 60,  "slow": 90,  "atr_mult": 0.0},
-    {"fast": 120, "slow": 180, "atr_mult": 0.0},
-    {"fast": 200, "slow": 300, "atr_mult": 0.0},
+    {"fast": 120,  "slow": 320,  "atr_mult": 0.0},
+    {"fast": 320, "slow": 1200, "atr_mult": 0.0},
+    {"fast": 1200, "slow": 3800, "atr_mult": 0.0},
 ]
 
-SYMBOLS = ["ICICIBANK"]  # extend as needed
+# SYMBOLS = ["INFY", "ICICIBANK", "RELIANCE"]  # extend as needed
+SYMBOLS = ["RELIANCE"]  # extend as needed
 
-BURN_IN_DATE  = "2024-12-01"
+BURN_IN_DATE  = "2024-06-15"
 WARMUP_FACTOR = 10   # just so calc matches your ST file; strategy itself blocks pre-start signals
 
 PERIODS = {
-    "Jan-2025":  ("2025-01-01", "2025-01-31"),
-    "Feb-2025":  ("2025-02-01", "2025-02-28"),
-    "Mar-2025":  ("2025-03-01", "2025-03-31"),
-    "Apr-2025":  ("2025-04-01", "2025-04-30"),
-    "May-2025":  ("2025-05-01", "2025-05-31"),
-    "Jun-2025":  ("2025-06-01", "2025-06-30"),
-    "Jul-2025":  ("2025-07-01", "2025-07-17"),
+    # "Jan-2025":  ("2025-01-01", "2025-01-31"),
+    # "Feb-2025":  ("2025-02-01", "2025-02-28"),
+    # "Mar-2025":  ("2025-03-01", "2025-03-31"),
+    # "Apr-2025":  ("2025-04-01", "2025-04-30"),
+    # "May-2025":  ("2025-05-01", "2025-05-31"),
+    # "Jun-2025":  ("2025-06-01", "2025-06-30"),
+    "Jul-2025":  ("2025-07-01", "2025-07-22"),
 }
 
 RESULTS_DIR = os.path.join(_ROOT, "results")

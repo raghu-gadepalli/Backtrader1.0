@@ -2,7 +2,7 @@
 """
 scripts/run_hmamulti_refine.py
 
-Stage 2 refinement for multi‑HMA: for one or more symbols, test a manually‑picked
+Stage2 refinement for multiHMA: for one or more symbols, test a manuallypicked
 list of HMA parameter combos and dump results (with expectancy) to
 results/<SYMBOL>_hma_refine.csv.
 """
@@ -11,12 +11,12 @@ import os
 import sys
 import csv
 
-# ─── project root on path ─────────────────────────────────────────────────────
+#  project root on path 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-# ─── dump CSVs into a 'results' folder ────────────────────────────────────────
+#  dump CSVs into a 'results' folder 
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
@@ -24,14 +24,14 @@ import backtrader as bt
 from data.load_candles         import load_candles
 from strategies.hma_multitrend import HmaMultiTrendStrategy
 
-# ─── SETTINGS ────────────────────────────────────────────────────────────────
+#  SETTINGS 
 WARMUP_START  = "2025-04-01"
 END           = "2025-07-06"
 ATR_MULT      = 0.0
 STARTING_CASH = 500_000
 COMMISSION    = 0.0002
 
-# ─── Manually‑picked combos per symbol for refinement ────────────────────────
+#  Manuallypicked combos per symbol for refinement 
 # Only include the symbols you want to refine in this dict:
 COMBINATIONS = {
     "INFY": [
@@ -100,7 +100,7 @@ def backtest(symbol, fast, mid1, mid2, mid3, atr_mult):
 def run_refine():
     for symbol, combos in COMBINATIONS.items():
         out_csv = os.path.join(RESULTS_DIR, f"{symbol}_hma_refine.csv")
-        print(f"\nRefining {symbol} → writing to {out_csv}")
+        print(f"\nRefining {symbol}  writing to {out_csv}")
         with open(out_csv, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow([

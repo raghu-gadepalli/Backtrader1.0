@@ -1,0 +1,2 @@
+symbol,atr_mean,sharpe,drawdown,trades,win_rate,expectancy,fast,mid1,mid2,mid3,adx_period,adx_threshold,atr_period,atr_mult,sl_mode,sl_value,use_sl_tg,use_trailing,trail_atr_mult,use_signal_exit,reentry_cooldown,ignore_before,tg_mode,tg1,tg2,tg3
+MARUTI,6.726636475916015,-0.4472135954999579,0.00018116565943119132,1,0.0,-63.530000000000655,80,220,560,1520,14,20.0,14,1.0,PCT,0.5,True,False,3.0,True,0,,OFF,0.0,0.0,0.0

@@ -7,7 +7,7 @@ from datetime import datetime
 import pandas as pd
 import backtrader as bt
 
-# ─── Project root ────────────────────────────────────────────────────────────
+#  Project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -19,13 +19,23 @@ from data.load_candles          import load_candles
 from strategies.hma_multitrend  import HmaMultiTrendStrategy
 from analyzers.trade_list       import TradeList   # same file used for ST
 
-# ─── CONFIG ──────────────────────────────────────────────────────────────────
+#  CONFIG 
 # Grid of HMA sets to test for RELIANCE (add more symbols/sets as needed)
 HMA_PARAM_GRID = {
+    "ICICIBANK": [
+        {"fast": 120, "mid1": 320, "mid2": 1200,  "mid3": 3800},
+        # {"fast": 240, "mid1": 480, "mid2": 960,  "mid3": 1920},
+        # {"fast": 260, "mid1": 520, "mid2": 1040, "mid3": 2080},
+    ],
+    "INFY": [
+        {"fast": 120, "mid1": 320, "mid2": 1200,  "mid3": 3800},
+        # {"fast": 240, "mid1": 480, "mid2": 960,  "mid3": 1920},
+        # {"fast": 260, "mid1": 520, "mid2": 1040, "mid3": 2080},
+    ],
     "RELIANCE": [
-        {"fast": 220, "mid1": 440, "mid2": 800,  "mid3": 1600},
-        {"fast": 240, "mid1": 480, "mid2": 960,  "mid3": 1920},
-        {"fast": 260, "mid1": 520, "mid2": 1040, "mid3": 2080},
+        {"fast": 120, "mid1": 320, "mid2": 1200,  "mid3": 3800},
+        # {"fast": 240, "mid1": 480, "mid2": 960,  "mid3": 1920},
+        # {"fast": 260, "mid1": 520, "mid2": 1040, "mid3": 2080},
     ],
 }
 

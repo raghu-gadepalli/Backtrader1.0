@@ -2,12 +2,12 @@
 """
 scripts/run_supertrend_sweep.py
 
-Three‐pass coordinate descent for SuperTrend across multiple symbols,
-using a unified warm‑up/test split, with detailed print statements.
+Threepass coordinate descent for SuperTrend across multiple symbols,
+using a unified warmup/test split, with detailed print statements.
 
-Loads from BURN_IN_DATE→END, then:
-  - Warm‑up = last period*WARMUP_FACTOR bars before TEST_START
-  - Test    = all bars from TEST_START→END
+Loads from BURN_IN_DATEEND, then:
+  - Warmup = last period*WARMUP_FACTOR bars before TEST_START
+  - Test    = all bars from TEST_STARTEND
 
 Writes:
   results/supertrend_opt_all_stages.csv
@@ -20,7 +20,7 @@ import csv
 import pandas as pd
 from datetime import datetime
 
-# ─── project root ────────────────────────────────────────────────────────────
+#  project root 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -30,12 +30,12 @@ import backtrader as bt
 from data.load_candles    import load_candles
 from strategies.supertrend import ST
 
-# ─── USER PARAMETERS ─────────────────────────────────────────────────────────
+#  USER PARAMETERS 
 SYMBOLS       = ["ICICIBANK", "INFY", "RELIANCE"]
-BURN_IN_DATE  = "2025-02-15"     # earliest bar you’ll ever load
+BURN_IN_DATE  = "2025-02-15"     # earliest bar youll ever load
 TEST_START    = "2025-06-25"     # start of test window (inclusive)
 END           = "2025-07-17"     # end of test window (inclusive)
-WARMUP_FACTOR = 10               # warm‑up bars = period * this factor
+WARMUP_FACTOR = 10               # warmup bars = period * this factor
 
 ST_PERIODS    = [20, 30, 40, 60]
 DEFAULT_MULT  = 4.0
@@ -60,14 +60,14 @@ def backtest(symbol, period, mult):
     # Load full history
     df_all = load_candles(symbol, BURN_IN_DATE, END)
     df_all.index = pd.to_datetime(df_all.index)
-    # Split warm‑up vs test
+    # Split warmup vs test
     ts_dt       = datetime.strptime(TEST_START, "%Y-%m-%d")
     df_warm_all = df_all[df_all.index < ts_dt]
     df_test     = df_all[df_all.index >= ts_dt]
 
     needed = period * WARMUP_FACTOR
     if len(df_warm_all) < needed:
-        print(f"❗ Not enough warm‑up bars for {symbol} @ period={period}"
+        print(f" Not enough warmup bars for {symbol} @ period={period}"
               f" (have {len(df_warm_all)}, need {needed})")
         sys.exit(1)
 
@@ -119,13 +119,13 @@ if __name__ == "__main__":
         for symbol in SYMBOLS:
             print(f"\n====== OPTIMIZING {symbol} ======")
 
-            # ── PASS 1: sweep periods ────────────────────────
+            #  PASS1: sweep periods 
             p1_results = []
             total1 = len(ST_PERIODS)
             for i, period in enumerate(ST_PERIODS, 1):
-                print(f"[{symbol}] PASS1 ({i}/{total1}) → period={period}, mult={DEFAULT_MULT}")
+                print(f"[{symbol}] PASS1 ({i}/{total1})  period={period}, mult={DEFAULT_MULT}")
                 sr, ex, tot, wr = backtest(symbol, period, DEFAULT_MULT)
-                print(f"  → Sharpe={sr:.4f}, Exp={ex:.4f}, Trades={tot}, Win%={wr:.2f}")
+                print(f"   Sharpe={sr:.4f}, Exp={ex:.4f}, Trades={tot}, Win%={wr:.2f}")
                 rec = dict(symbol=symbol, stage=1,
                            period=period, mult=DEFAULT_MULT,
                            sharpe=sr, expectancy=ex,
@@ -142,12 +142,12 @@ if __name__ == "__main__":
                 heads1.append(r); seen.add(r["period"])
                 if len(heads1) >= PASS1_N: break
 
-            # ── PASS 2: drill coarse multipliers ─────────────
+            #  PASS2: drill coarse multipliers 
             p2_results = []
             for idx, h in enumerate(heads1, 1):
-                print(f"[{symbol}] PASS2 ({idx}/{len(heads1)}) → period={h['period']}")
+                print(f"[{symbol}] PASS2 ({idx}/{len(heads1)})  period={h['period']}")
                 for j, m in enumerate(COARSE_MULTS, 1):
-                    print(f"  → mult={m}")
+                    print(f"   mult={m}")
                     sr, ex, tot, wr = backtest(symbol, h["period"], m)
                     print(f"     Sharpe={sr:.4f}, Exp={ex:.4f}, Trades={tot}, Win%={wr:.2f}")
                     rec = dict(symbol=symbol, stage=2,
@@ -166,14 +166,14 @@ if __name__ == "__main__":
                 heads2.append(r); seen.add(r["mult"])
                 if len(heads2) >= PASS2_N: break
 
-            # ── PASS 3: refine multipliers ±0.4 step 0.2 ─────
+            #  PASS3: refine multipliers 0.4 step 0.2 
             p3_results = []
             for idx, h in enumerate(heads2, 1):
                 base = h["mult"]
                 refine = [round(base + dm,1) for dm in (-0.4,-0.2,0,0.2,0.4) if base+dm>0]
-                print(f"[{symbol}] PASS3 ({idx}/{len(heads2)}) → refine mults={refine}")
+                print(f"[{symbol}] PASS3 ({idx}/{len(heads2)})  refine mults={refine}")
                 for m in refine:
-                    print(f"  → mult={m}")
+                    print(f"   mult={m}")
                     sr, ex, tot, wr = backtest(symbol, h["period"], m)
                     print(f"     Sharpe={sr:.4f}, Exp={ex:.4f}, Trades={tot}, Win%={wr:.2f}")
                     rec = dict(symbol=symbol, stage=3,
@@ -194,7 +194,7 @@ if __name__ == "__main__":
 
             # write final survivors
             for r in heads3:
-                print(f"[{symbol}] FINAL → period={r['period']}, mult={r['mult']}, "
+                print(f"[{symbol}] FINAL  period={r['period']}, mult={r['mult']}, "
                       f"Sharpe={r['sharpe']:.4f}, Exp={r['expectancy']:.4f}")
                 fin_w.writerow([symbol,
                                 r["period"],r["mult"],
@@ -203,5 +203,5 @@ if __name__ == "__main__":
                                 r["trades"],f"{r['win_rate']:.2f}"])
                 fin_f.flush()
 
-    print(f"\nWrote all‑stages → {all_path}")
-    print(f"Wrote final       → {final_path}")
+    print(f"\nWrote allstages  {all_path}")
+    print(f"Wrote final        {final_path}")

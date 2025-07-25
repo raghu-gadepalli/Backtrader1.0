@@ -33,11 +33,11 @@ class HmaCrossover(bt.Strategy):
 
         self._order    = None
         self._prev_rel = None      # fast > slow on previous bar?
-        # fields we’ll stash for TradeList (just like SuperTrend)
+        # fields well stash for TradeList (just like SuperTrend)
         self.last_atr_on_entry   = None
         self.last_close_on_entry = None
 
-    # ───────────────────────── events ─────────────────────────
+    #  events 
     def notify_order(self, order):
         if order.status in (order.Submitted, order.Accepted):
             return
@@ -54,7 +54,7 @@ class HmaCrossover(bt.Strategy):
         if trade.isclosed:
             self.log(f"TRADE CLOSED PnL {trade.pnl:.2f} (Net {trade.pnlcomm:.2f})")
 
-    # ───────────────────────── core ───────────────────────────
+    #  core 
     def next(self):
         if self._order:
             return

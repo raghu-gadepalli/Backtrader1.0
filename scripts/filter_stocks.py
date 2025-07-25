@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 import os, sys
 
-# ─── project root setup ───────────────────────────────────────────────────────
+#  project root setup 
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
-# ────────────────────────────────────────────────────────────────────────────────
+# 
 
 from datetime import datetime
 import pandas as pd
 from data.load_candles import load_candles
 
-# ─── USER SETTINGS ─────────────────────────────────────────────────────────────
+#  USER SETTINGS 
 SYMBOLS = [
     "AXISBANK", "HDFCBANK", "ICICIBANK", "INFY", "KOTAKBANK",
     "MARUTI", "NIFTY 50", "NIFTY BANK", "RELIANCE", "SBIN",
@@ -22,10 +22,10 @@ SYMBOLS = [
 START = "2025-07-01"
 END   = "2025-07-17"
 
-MIN_RANGE_PCT = 2.0    # minimum high‑low range over the period
-MIN_ATR_PCT   = 0.30   # minimum ATR(14) on 60 min bars, expressed as %
+MIN_RANGE_PCT = 2.0    # minimum highlow range over the period
+MIN_ATR_PCT   = 0.30   # minimum ATR(14) on 60min bars, expressed as %
 
-# ─── HELPERS ───────────────────────────────────────────────────────────────────
+#  HELPERS 
 def normalize(ts, is_start=True):
     return ts + (" 00:00:00" if is_start else " 23:59:59")
 
@@ -35,7 +35,7 @@ def compute_range_pct(df):
 
 def compute_hourly_atr_pct(df, period=14):
     """
-    Resample the 1 min df to 60 min bars,
+    Resample the 1min df to 60min bars,
     compute ATR(period) on those bars, and
     return the last ATR as a % of last close.
     """
@@ -63,16 +63,16 @@ def compute_hourly_atr_pct(df, period=14):
     last_close = ohlc["close"].iloc[-1]
     return (last_atr / last_close) * 100.0
 
-# ─── MAIN ──────────────────────────────────────────────────────────────────────
+#  MAIN 
 def main():
     warm   = normalize(START, True)
     finish = normalize(END,   False)
     dt0 = datetime.strptime(warm,   "%Y-%m-%d %H:%M:%S")
     dt1 = datetime.strptime(finish, "%Y-%m-%d %H:%M:%S")
 
-    print(f"Filtering {START} → {END}")
-    print(f" • Minimum range : {MIN_RANGE_PCT:.2f}%")
-    print(f" • Minimum ATR%  : {MIN_ATR_PCT:.2f}%  (on 60 min bars)\n")
+    print(f"Filtering {START}  {END}")
+    print(f"  Minimum range : {MIN_RANGE_PCT:.2f}%")
+    print(f"  Minimum ATR%  : {MIN_ATR_PCT:.2f}%  (on 60min bars)\n")
 
     results = []
     for sym in SYMBOLS:
@@ -91,7 +91,7 @@ def main():
 
         # 4) decide
         ok = (range_pct >= MIN_RANGE_PCT) and (atr60_pct >= MIN_ATR_PCT)
-        status = "✅ OK" if ok else "❌ SKIP"
+        status = " OK" if ok else " SKIP"
 
         results.append({
             "symbol":    sym,

@@ -2,16 +2,16 @@ import backtrader as bt
 
 class AdaptiveSuperTrend(bt.Indicator):
     """
-    Auto‑tuning SuperTrend:
-      base_mult = a_coef + b_coef × avg_atr
-      dyn_mult  = base_mult × (avg_atr / atr)
+    Autotuning SuperTrend:
+      base_mult = a_coef + b_coef  avg_atr
+      dyn_mult  = base_mult  (avg_atr / atr)
     """
     lines = ("st",)
     params = dict(
         period       = 240,     # ATR lookback for ST
         vol_lookback = 240,     # smoothing window for baseline ATR
-        a_coef       = -1.4218, # intercept from Jan–Jun fit
-        b_coef       =  3.9862, # slope from Jan–Jun fit
+        a_coef       = -1.4218, # intercept from JanJun fit
+        b_coef       =  3.9862, # slope from JanJun fit
         min_mult     = 0.5,     # clamp lower bound
         max_mult     = 3.0,     # clamp upper bound
     )
@@ -88,7 +88,7 @@ class FixedWidthSuperTrend(bt.Indicator):
     lines = ("st",)
     params = dict(
         period       = 240,    # ATR lookback
-        target_width = 2.38,   # e.g. Jan–Jun vol_baseline * best_mult
+        target_width = 2.38,   # e.g. JanJun vol_baseline * best_mult
     )
 
     def __init__(self):
