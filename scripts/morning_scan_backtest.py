@@ -24,7 +24,8 @@ RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
 PARAMS = dict(
-    fast=80, mid1=220, mid2=560, mid3=1520,
+    # fast=80, mid1=220, mid2=560, mid3=1520,
+    fast=80, mid1=320, mid2=1200, mid3=3800,
     adx_threshold=20.0, adx_period=14,
     atr_period=14, atr_mult=1.0,
     use_sl_tg=True, use_trailing=False,
@@ -162,7 +163,7 @@ def run_backtest_for(symbol, token, burn_in, start_raw, end_raw, base_params):
 def main():
     print(f"Starting morningscan backtest on {RUN_DATE}")
     run_str = RUN_DATE.strftime("%Y%m%d")
-    scan_csv    = os.path.join(RESULTS_DIR, f"scanner_{run_str}_movers.csv")
+    scan_csv    = os.path.join(RESULTS_DIR, f"morning_scanner_{run_str}.csv")
     summary_out = os.path.join(RESULTS_DIR, f"scanbt_summary_{run_str}.csv")
     trades_out  = os.path.join(RESULTS_DIR, f"scanbt_trades_{run_str}.csv")
 
@@ -172,7 +173,7 @@ def main():
         return
 
     token_map    = dict(fetch_symbols(active=None, type_filter="EQ"))
-    burn_in      = (RUN_DATE - timedelta(days=7)).strftime("%Y-%m-%d 00:00:00")
+    burn_in      = (RUN_DATE - timedelta(days=15)).strftime("%Y-%m-%d 00:00:00")
     period_start = RUN_DATE.strftime("%Y-%m-%d 09:30:00")
     period_end   = RUN_DATE.strftime("%Y-%m-%d 15:30:00")
 

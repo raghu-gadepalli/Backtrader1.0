@@ -3,148 +3,159 @@
 
 import os
 import sys
+import csv
 import logging
-import pandas as pd
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time as dtime, timedelta
 from zoneinfo import ZoneInfo
-from kiteconnect import KiteConnect
+import pandas as pd
+from pandas.tseries.offsets import BDay
 
-#  Project root 
+# allow imports from project root
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-#  Results folder 
+# Results directory
 RESULTS_DIR = os.path.join(_ROOT, "results")
 os.makedirs(RESULTS_DIR, exist_ok=True)
 
-#  Kite credentials 
-API_KEY      = "bv185n0541aaoish"
-ACCESS_TOKEN = "1andO40s4rkUL7dANHRp06UPuv6wvUvY"
-
-#  Scanner config 
-RUN_DATE       = "2025-07-25"    #  the date you want to scan
-TIMEZONE       = "Asia/Kolkata"
-LOOKBACK_DAYS  = 7               # warmup window
-FREQUENCY_KEY  = "15min"         # intraday bar size
-OPEN_TIME      = time(9, 30)     # which bar on RUN_DATE to measure
-
-#  Map your frequencies to Kites API 
-VALID_FREQS = {
-    "1min":  "minute",
-    "3min":  "3minute",
-    "5min":  "5minute",
-    "10min": "10minute",
-    "15min": "15minute",
-    "30min": "30minute",
-    "60min": "60minute",
-    "day":   "day",
-}
-
-#  Pull your symbol/token list 
 from data.get_symbols import fetch_symbols  # returns List[Tuple[symbol:str, token:int]]
+from data.load_candles_kite import load_candles_kite  # returns DataFrame with OHLCV
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
+# Settings
+RUN_DATE          = "2025-07-23"  # format: YYYY-MM-DD
+TIMEZONE          = "Asia/Kolkata"
+OPEN_TIME         = dtime(9, 15)
+LOOKBACK_DAYS     = 20
+FREQUENCY         = "15minute"
+MIN_OPENING_BARS  = 15
 
-
-def fetch_intraday(symbol: str, token: int,
-                   start_dt: datetime, end_dt: datetime,
-                   freq_key: str) -> pd.DataFrame:
-    """Get Kite intraday bars between two timezoneaware datetimes."""
-    kite = KiteConnect(api_key=API_KEY)
-    kite.set_access_token(ACCESS_TOKEN)
-    interval = VALID_FREQS[freq_key]
-
-    bars = kite.historical_data(
-        instrument_token=token,
-        from_date=start_dt,
-        to_date=end_dt,
-        interval=interval
-    )
-    df = pd.DataFrame(bars)
-
-    def _ensure_tz(x):
-        # Kite sometimes gives pure datestrings ("YYYY-MM-DD") for old bars
-        if isinstance(x, str) and len(x) == 10:
-            d0 = datetime.strptime(x, "%Y-%m-%d")
-            return d0.replace(tzinfo=ZoneInfo(TIMEZONE))
-        dt0 = pd.to_datetime(x).to_pydatetime()
-        if dt0.tzinfo is None:
-            dt0 = dt0.replace(tzinfo=ZoneInfo(TIMEZONE))
-        return dt0
-
-    df["date"] = df["date"].apply(_ensure_tz)
-    df.set_index("date", inplace=True)
-    df.sort_index(inplace=True)
-
-    return df[["open", "high", "low", "close", "volume"]]
+# Logging Setup
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)-5s %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 
-def compute_movers(symbols, run_date: date):
-    # build datetime bounds
-    start_date = run_date - timedelta(days=LOOKBACK_DAYS)
-    dt_start = datetime.combine(start_date, time(0, 0), tzinfo=ZoneInfo(TIMEZONE))
-    dt_end   = datetime.combine(run_date, OPEN_TIME, tzinfo=ZoneInfo(TIMEZONE))
+def compute_stats_and_today(symbols, run_date):
+    tz = ZoneInfo(TIMEZONE)
+    # business-day lookback
+    start_date = (pd.Timestamp(run_date) - BDay(LOOKBACK_DAYS)).date()
+    start_dt   = datetime.combine(start_date, OPEN_TIME, tzinfo=tz)
+    end_dt     = datetime.combine(run_date, OPEN_TIME, tzinfo=tz)
 
-    # figure out how far back the bar starts
-    mins = int(''.join(filter(str.isdigit, FREQUENCY_KEY)))  # e.g. "15min"  15
-    dt_bar = dt_end - timedelta(minutes=mins)                # e.g. 09:3015min = 09:15 stamp
+    logger.info(f"Fetching data from {start_date} to {run_date} for {len(symbols)} symbols")
+    hist_stats, today_bars, audit = {}, {}, []
 
-    movers = []
     for symbol, token in symbols:
+        rec = {"symbol": symbol}
         try:
-            df = fetch_intraday(symbol, token, dt_start, dt_end, FREQUENCY_KEY)
+            df = load_candles_kite(symbol, token, start_dt, end_dt, frequency=FREQUENCY)
         except Exception as e:
-            log.warning(f"{symbol:<10} fetch failed: {e}")
+            logger.warning(f"{symbol:<8} fetch error: {e}")
+            rec.update({"status": "error", "reason": str(e)})
+            audit.append(rec)
             continue
 
-        # require enough history
-        hist = df[df.index < dt_bar]
-        if len(hist) < LOOKBACK_DAYS:
-            log.info(f"{symbol:<10} insufficient bars ({len(hist)})")
+        rec["total_bars"] = len(df)
+        if df.empty:
+            rec.update({"status": "skipped", "reason": "no data"})
+            audit.append(rec)
             continue
 
-        # look strictly for the "09:15" bar (start of the 09:1509:30 interval)
-        today = df[df.index == dt_bar]
-        if today.empty:
-            log.info(f"{symbol:<10} missing openbar at {dt_bar.isoformat()}")
+        opening = df[df.index.time == OPEN_TIME]
+        rec["opening_bars"] = len(opening)
+        if len(opening) < MIN_OPENING_BARS:
+            rec.update({"status": "skipped", "reason": f"only {len(opening)} opening bars (<{MIN_OPENING_BARS})"})
+            audit.append(rec)
             continue
 
-        o = float(today.open.iloc[0])
-        c = float(today.close.iloc[0])
-        movers.append({
-            "symbol": symbol,
-            "open":   o,
-            "close":  c,
-            "move":   c - o
-        })
+        history = opening.iloc[:-1]
+        today   = opening.iloc[-1]
+        rec.update({"history_bars": len(history), "today_time": today.name})
 
-    return movers
+        avg_r = float((history["high"] - history["low"]).mean())
+        avg_v = float(history["volume"].mean())
+        rec.update({"avg_range": avg_r, "avg_volume": avg_v, "status": "included"})
+
+        hist_stats[symbol] = {"avg_range": avg_r, "avg_volume": avg_v}
+        today_bars[symbol] = today
+        audit.append(rec)
+
+        logger.info(f"{symbol:<8} hist={len(history):>2} avg_r={avg_r:.2f} avg_v={avg_v:.0f} today={today.name}")
+
+    return hist_stats, today_bars, audit
 
 
 def main():
-    run_date = datetime.strptime(RUN_DATE, "%Y-%m-%d").date()
-
     try:
-        symbols = fetch_symbols(active=None, type_filter="EQ")
-    except Exception as e:
-        log.error("Could not fetch symbols: %s", e)
+        run_date = datetime.strptime(RUN_DATE, "%Y-%m-%d").date()
+    except ValueError:
+        logger.error("RUN_DATE must be YYYY-MM-DD")
         return
 
-    log.info(f"Scanning {len(symbols)} symbols for {run_date} (lookback {LOOKBACK_DAYS}d)")
+    date_str   = run_date.strftime("%Y%m%d")
+    csv_file   = os.path.join(RESULTS_DIR, f"morning_scanner_{date_str}.csv")
+    audit_file = os.path.join(RESULTS_DIR, f"morning_scan_audit_{date_str}.csv")
 
-    movers = compute_movers(symbols, run_date)
-    df = pd.DataFrame(movers)
-    # rank by magnitude, not signed value
-    df["abs_move"] = df["move"].abs()
-    df = df.sort_values("abs_move", ascending=False).drop(columns="abs_move")
+    symbols = fetch_symbols(active=None, type_filter="EQ") or []
+    logger.info(f"Loaded {len(symbols)} symbols for {run_date}")
 
-    out_path = os.path.join(RESULTS_DIR, f"scanner_{run_date:%Y%m%d}_movers.csv")
-    df.to_csv(out_path, index=False)
+    stats, today_bars, audit = compute_stats_and_today(symbols, run_date)
+    included = len(stats)
+    logger.info(f"{included}/{len(symbols)} symbols passed inclusion criteria")
 
-    log.info(f"Wrote {out_path}")
-    log.info("Top 10 movers:\n%s", df.head(10).to_string(index=False))
+    # scoring
+    results = []
+    for symbol, _ in symbols:
+        if symbol in stats and symbol in today_bars:
+            avg_r = stats[symbol]["avg_range"]
+            avg_v = stats[symbol]["avg_volume"]
+            bar   = today_bars[symbol]
+            rng   = float(bar["high"] - bar["low"])
+            vol   = int(bar["volume"])
+            rd    = (rng - avg_r) / avg_r if avg_r else 0
+            vd    = (vol - avg_v) / avg_v if avg_v else 0
+            score = 0.7 * rd + 0.3 * vd
+            direction = "BUY" if bar["close"] > bar["open"] else "SELL"
+            results.append({
+                "symbol":       symbol,
+                "avg_range":    round(avg_r, 2),
+                "avg_volume":   round(avg_v),
+                "today_range":  round(rng, 2),
+                "today_volume": vol,
+                "range_dev":    round(rd, 4),
+                "vol_dev":      round(vd, 4),
+                "score":        round(score, 4),
+                "direction":    direction,
+            })
+
+    # write audit
+    pd.DataFrame(audit).to_csv(audit_file, index=False)
+    logger.info(f"Audit saved to {audit_file}")
+
+    # sort & dedupe
+    sorted_results = sorted(results, key=lambda x: x["score"], reverse=True)
+    unique = []
+    seen = set()
+    for r in sorted_results:
+        if r["symbol"] not in seen:
+            unique.append(r)
+            seen.add(r["symbol"])
+
+    # write full results
+    with open(csv_file, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=unique[0].keys())
+        writer.writeheader()
+        writer.writerows(unique)
+    logger.info(f"Results saved to {csv_file}")
+
+    # log top 10
+    logger.info("Top 10 movers:")
+    for r in unique[:10]:
+        logger.info(f"{r['symbol']:<8} {r['direction']:>4} score={r['score']} rng={r['today_range']} vol={r['today_volume']}")
 
 
 if __name__ == "__main__":
